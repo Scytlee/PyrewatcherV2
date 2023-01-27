@@ -1,0 +1,44 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{F8C47309-BF3C-409A-B338-36C63C9FD90F}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{0BD2D645-FC89-4B2A-B283-EA170F5719F3}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pyrewatcher.Bot", "src\Pyrewatcher.Bot\Pyrewatcher.Bot.csproj", "{7ECA27B2-8D3E-4070-8B39-179800C98148}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pyrewatcher.Service", "src\Pyrewatcher.Service\Pyrewatcher.Service.csproj", "{F41929DE-0071-4EF7-8567-3FBC451DF693}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pyrewatcher.Library", "src\Pyrewatcher.Library\Pyrewatcher.Library.csproj", "{0DA17518-6B99-4037-B771-E0B8445CC235}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Pyrewatcher.Bot.Tests", "tests\Pyrewatcher.Bot.Tests\Pyrewatcher.Bot.Tests.csproj", "{0FA5B289-B8CC-4F05-8C83-718F168C9DAB}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{7ECA27B2-8D3E-4070-8B39-179800C98148} = {F8C47309-BF3C-409A-B338-36C63C9FD90F}
+		{F41929DE-0071-4EF7-8567-3FBC451DF693} = {F8C47309-BF3C-409A-B338-36C63C9FD90F}
+		{0DA17518-6B99-4037-B771-E0B8445CC235} = {F8C47309-BF3C-409A-B338-36C63C9FD90F}
+		{0FA5B289-B8CC-4F05-8C83-718F168C9DAB} = {0BD2D645-FC89-4B2A-B283-EA170F5719F3}
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{7ECA27B2-8D3E-4070-8B39-179800C98148}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{7ECA27B2-8D3E-4070-8B39-179800C98148}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{7ECA27B2-8D3E-4070-8B39-179800C98148}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{7ECA27B2-8D3E-4070-8B39-179800C98148}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F41929DE-0071-4EF7-8567-3FBC451DF693}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F41929DE-0071-4EF7-8567-3FBC451DF693}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F41929DE-0071-4EF7-8567-3FBC451DF693}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F41929DE-0071-4EF7-8567-3FBC451DF693}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0DA17518-6B99-4037-B771-E0B8445CC235}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0DA17518-6B99-4037-B771-E0B8445CC235}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0DA17518-6B99-4037-B771-E0B8445CC235}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0DA17518-6B99-4037-B771-E0B8445CC235}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0FA5B289-B8CC-4F05-8C83-718F168C9DAB}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0FA5B289-B8CC-4F05-8C83-718F168C9DAB}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0FA5B289-B8CC-4F05-8C83-718F168C9DAB}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0FA5B289-B8CC-4F05-8C83-718F168C9DAB}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal
