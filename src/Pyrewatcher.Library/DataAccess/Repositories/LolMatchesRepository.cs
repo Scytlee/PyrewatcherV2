@@ -7,7 +7,7 @@ namespace Pyrewatcher.Library.DataAccess.Repositories;
 
 public class LolMatchesRepository : RepositoryBase, ILolMatchesRepository
 {
-  public LolMatchesRepository(IConfiguration config) : base(config)
+  public LolMatchesRepository(IConfiguration configuration) : base(configuration)
   {
   }
 

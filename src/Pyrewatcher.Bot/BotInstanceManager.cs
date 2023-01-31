@@ -1,6 +1,7 @@
 ﻿using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
+using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.Models;
 using TwitchLib.Client;
 using TwitchLib.Client.Events;
@@ -9,20 +10,25 @@ using TwitchLib.Communication.Events;
 
 namespace Pyrewatcher.Bot;
 
+/// <summary>
+/// Class responsible for all instances of the bot for all channels.
+/// This class should be a singleton.
+/// </summary>
 public class BotInstanceManager
 {
   private readonly Dictionary<string, BotInstance> _instances;
 
   private readonly IServiceProvider _serviceProvider;
-  private const int MaximumReconnectAttempts = 5;
-
   private readonly TwitchClient _client;
   private readonly IConfiguration _configuration;
   private readonly ILogger<BotInstanceManager> _logger;
 
+  private readonly IChannelsRepository _channelsRepository;
+
   // private readonly SubscriptionService _subscriptionService;
 
-  public BotInstanceManager(IServiceProvider serviceProvider, TwitchClient client, IConfiguration configuration, ILogger<BotInstanceManager> logger)
+  public BotInstanceManager(IServiceProvider serviceProvider, TwitchClient client, IConfiguration configuration, ILogger<BotInstanceManager> logger,
+    IChannelsRepository channelsRepository)
   {
     _instances = new();
 
@@ -30,6 +36,7 @@ public class BotInstanceManager
     _client = client;
     _configuration = configuration;
     _logger = logger;
+    _channelsRepository = channelsRepository;
   }
 
   public async Task Initialize()
@@ -50,7 +57,7 @@ public class BotInstanceManager
     _client.OnUnaccountedFor += OnUnaccountedFor;
 
     // Retrieve list of channels to connect to
-    var channels = new[] { new Channel { NormalizedName = "scytlee" }, new Channel { NormalizedName = "pyrewatcher_" } };
+    var channels = (await _channelsRepository.GetConnected()).ToList();
 
     // Create bot instances for each channel
     foreach (var channel in channels)
@@ -60,7 +67,7 @@ public class BotInstanceManager
 
     var credentials = new ConnectionCredentials(_configuration.GetSection("Twitch")["Username"], _configuration.GetSection("Twitch")["IrcToken"],
                                                 capabilities: new Capabilities(false));
-    
+
     _client.Initialize(credentials, channels.Select(channel => channel.NormalizedName).ToList());
     _client.AddChatCommandIdentifier('\\');
   }
@@ -73,6 +80,7 @@ public class BotInstanceManager
   private void CreateInstance(Channel channel)
   {
     var instance = _serviceProvider.GetService<BotInstance>()!;
+    instance.Initialize(channel);
     _instances.Add(channel.NormalizedName, instance);
   }
 
@@ -103,15 +111,14 @@ public class BotInstanceManager
       // client might not be connected anyway
     }
   }
-  
+
   private async void OnMessageReceived(object? sender, OnMessageReceivedArgs e)
   {
-    
   }
 
-  private void OnChatCommandReceived(object? sender, OnChatCommandReceivedArgs e)
+  private async void OnChatCommandReceived(object? sender, OnChatCommandReceivedArgs e)
   {
-    
+    await _instances[e.Command.ChatMessage.Channel].HandleCommand(e.Command);
   }
 
   // Client successfully connected to Twitch

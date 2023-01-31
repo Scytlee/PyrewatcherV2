@@ -12,7 +12,7 @@ var host = Host.CreateDefaultBuilder()
                .ConfigureServices((hostContext, services) =>
                {
                  services.AddTransient<ISynchronizeLolDataService, SynchronizeLolDataService>();
-                 services.AddTransient<IBroadcastersRepository, BroadcastersRepository>();
+                 services.AddTransient<IChannelsRepository, ChannelsRepository>();
                  services.AddTransient<ILolMatchesRepository, LolMatchesRepository>();
                  services.AddTransient<IRiotAccountsRepository, RiotAccountsRepository>();
                  

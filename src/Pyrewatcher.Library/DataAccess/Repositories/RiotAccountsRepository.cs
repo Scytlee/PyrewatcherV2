@@ -8,7 +8,7 @@ namespace Pyrewatcher.Library.DataAccess.Repositories;
 
 public class RiotAccountsRepository : RepositoryBase, IRiotAccountsRepository
 {
-  public RiotAccountsRepository(IConfiguration config) : base(config)
+  public RiotAccountsRepository(IConfiguration configuration) : base(configuration)
   {
   }
 

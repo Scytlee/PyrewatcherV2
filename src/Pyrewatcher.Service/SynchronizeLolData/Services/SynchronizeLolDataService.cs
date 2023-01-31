@@ -8,16 +8,16 @@ namespace Pyrewatcher.Service.SynchronizeLolData.Services;
 
 public class SynchronizeLolDataService : ISynchronizeLolDataService
 {
-  private readonly IBroadcastersRepository _broadcastersRepository;
+  private readonly IChannelsRepository _channelsRepository;
   private readonly ILolMatchesRepository _lolMatchesRepository;
   private readonly IRiotAccountsRepository _riotAccountsRepository;
 
   private readonly IRiotClient _riotClient;
 
-  public SynchronizeLolDataService(IBroadcastersRepository broadcastersRepository, ILolMatchesRepository lolMatchesRepository,
+  public SynchronizeLolDataService(IChannelsRepository channelsRepository, ILolMatchesRepository lolMatchesRepository,
     IRiotAccountsRepository riotAccountsRepository, IRiotClient riotClient)
   {
-    _broadcastersRepository = broadcastersRepository;
+    _channelsRepository = channelsRepository;
     _lolMatchesRepository = lolMatchesRepository;
     _riotAccountsRepository = riotAccountsRepository;
     _riotClient = riotClient;
@@ -25,7 +25,7 @@ public class SynchronizeLolDataService : ISynchronizeLolDataService
 
   public async Task SynchronizeLolMatchDataForActiveChannels()
   {
-    var channels = (await _broadcastersRepository.GetConnected()).Where(channel => channel.DisplayName != "Pyrewatcher_").ToList();
+    var channels = (await _channelsRepository.GetConnected()).Where(channel => channel.DisplayName != "Pyrewatcher_").ToList();
 
     foreach (var channel in channels)
     {

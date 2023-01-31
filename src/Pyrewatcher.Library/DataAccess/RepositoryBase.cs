@@ -6,16 +6,16 @@ namespace Pyrewatcher.Library.DataAccess;
 
 public abstract class RepositoryBase
 {
-  private readonly IConfiguration _config;
+  private readonly IConfiguration _configuration;
 
-  protected RepositoryBase(IConfiguration config)
+  protected RepositoryBase(IConfiguration configuration)
   {
-    _config = config;
+    _configuration = configuration;
   }
 
   protected async Task<IDbConnection> CreateConnection()
   {
-    var conn = new SqlConnection(_config.GetConnectionString("Database"));
+    var conn = new SqlConnection(_configuration.GetConnectionString("Database"));
     await conn.OpenAsync();
 
     return conn;
