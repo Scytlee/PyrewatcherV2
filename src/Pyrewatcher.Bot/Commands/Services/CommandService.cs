@@ -171,11 +171,7 @@ public class CommandService : ICommandService
     var userRoles = ChatRoles.Viewer;
 
     // Database operator check
-    var operatorRole = await _operatorsRepository.GetUsersOperatorRoleByChannel(long.Parse(message.UserId), _instance.Channel.Id);
-    if (operatorRole is not null)
-    {
-      userRoles |= operatorRole.Value;
-    }
+    userRoles |= await _operatorsRepository.GetUsersOperatorRoleByChannel(long.Parse(message.UserId), _instance.Channel.Id);
 
     // Trusted check
     // This is something that might be implemented in the future

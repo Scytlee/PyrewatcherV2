@@ -14,9 +14,9 @@ public class LolMatchesRepository : RepositoryBase, ILolMatchesRepository
   public async Task<IEnumerable<string>> GetMatchesNotInDatabase(List<string> matches)
   {
     const string query = """
-SELECT [StringId]
-FROM [LolMatches]
-WHERE [StringId] IN @matches;
+SELECT [RiotInternalId]
+FROM [LeagueOfLegends].[Matches]
+WHERE [RiotInternalId] IN @matches;
 """;
 
     using var connection = await CreateConnection();
@@ -31,11 +31,11 @@ WHERE [StringId] IN @matches;
   public async Task<IEnumerable<string>> GetMatchesToUpdateByKey(string accountKey, List<string> matches)
   {
     const string query = """
-SELECT [LM].[StringId]
-FROM [LolMatches] [LM]
-INNER JOIN [LolMatchPlayers] [LMP] ON [LMP].[LolMatchId] = [LM].[Id]
-INNER JOIN [ChannelRiotAccountGames] [CRAG] ON [CRAG].[RiotAccountGameId] = [LMP].[RiotAccountGameId]
-WHERE [CRAG].[Key] = @accountKey AND [LM].[StringId] IN @matches;
+SELECT [lm].[RiotInternalId]
+FROM [LeagueOfLegends].[Matches] [lm]
+INNER JOIN [LeagueOfLegends].[MatchPlayers] [lmp] ON [lmp].[MatchId] = [lm].[Id]
+INNER JOIN [Riot].[ChannelAccountGames] [rcag] ON [rcag].[RiotAccountGameId] = [lmp].[RiotAccountGameId]
+WHERE [rcag].[Key] = @accountKey AND [lm].[RiotInternalId] IN @matches;
 """;
 
     using var connection = await CreateConnection();
@@ -50,7 +50,7 @@ WHERE [CRAG].[Key] = @accountKey AND [LM].[StringId] IN @matches;
   public async Task<bool> InsertMatchFromDto(string matchId, MatchV5Dto match)
   {
     const string query = """
-INSERT INTO [LolMatches] ([StringId], [GameStartTimestamp], [WinningTeam], [Duration])
+INSERT INTO [LeagueOfLegends].[Matches] ([RiotInternalId], [GameStartTimestamp], [WinningTeam], [Duration])
 VALUES (@matchId, @timestamp, @winningTeam, @duration);
 """;
 
@@ -70,20 +70,21 @@ VALUES (@matchId, @timestamp, @winningTeam, @duration);
   public async Task<bool> InsertMatchPlayerFromDto(string accountKey, string matchId, MatchParticipantV5Dto player)
   {
     const string query = """
-DECLARE @LolMatchId BIGINT;
-DECLARE @RiotAccountGameId BIGINT;
+DECLARE @lolMatchId BIGINT = (
+  SELECT TOP 1 [Id]
+  FROM [LeagueOfLegends].[Matches]
+  WHERE [RiotInternalId] = @matchId
+);
 
-SELECT TOP 1 @LolMatchId = [Id]
-FROM [LolMatches]
-WHERE [StringId] = @matchId;
+DECLARE @riotAccountGameId BIGINT = (
+  SELECT TOP 1 [RiotAccountGameId]
+  FROM [Riot].[ChannelAccountGames]
+  WHERE [Key] = @accountKey
+);
 
-SELECT TOP 1 @RiotAccountGameId = [RiotAccountGameId]
-FROM [ChannelRiotAccountGames]
-WHERE [Key] = @accountKey;
-
-INSERT INTO [LolMatchPlayers] ([LolMatchId], [RiotAccountGameId], [Team], [ChampionId], [Kills],
+INSERT INTO [LeagueOfLegends].[MatchPlayers] ([MatchId], [RiotAccountGameId], [Team], [ChampionId], [Kills],
   [Deaths], [Assists], [ControlWardsBought])
-VALUES (@LolMatchId, @RiotAccountGameId, @team, @championId, @kills, @deaths, @assists, @controlWardsBought);
+VALUES (@lolMatchId, @riotAccountGameId, @team, @championId, @kills, @deaths, @assists, @controlWardsBought);
 """;
 
     using var connection = await CreateConnection();

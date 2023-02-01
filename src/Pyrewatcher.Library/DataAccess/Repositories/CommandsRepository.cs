@@ -23,15 +23,15 @@ WITH [CommandTree] AS (
   SELECT [c].*, [co].[Enabled], [co].[CooldownInSeconds], [co].[Permissions]
   FROM (
     SELECT [c1].[Id], [c1].[Keyword], [c2].[Type], 2 AS [Degree]
-    FROM [new].[Commands] [c1]
-    LEFT JOIN [new].[Commands] [c2] ON [c2].[Id] = [c1].[ParentCommandId]
+    FROM [Core].[Commands] [c1]
+    LEFT JOIN [Core].[Commands] [c2] ON [c2].[Id] = [c1].[ParentCommandId]
     WHERE [c1].[Keyword] = @secondKeyword AND [c2].[Keyword] = @firstKeyword AND ([c1].[ChannelId] IS NULL OR [c1].[ChannelId] = @channelId)
     UNION
     SELECT [c1].[Id], [c1].[Keyword], [c1].[Type], 1 AS [Degree]
-    FROM [new].[Commands] [c1]
+    FROM [Core].[Commands] [c1]
     WHERE [c1].[Keyword] = @firstKeyword AND ([c1].[ChannelId] IS NULL OR [c1].[ChannelId] = @channelId)
   ) [c]
-  LEFT JOIN [new].[CommandOverrides] [co] ON [co].[CommandId] = [c].[Id] AND [co].[ChannelId] = @channelId
+  LEFT JOIN [Command].[Overrides] [co] ON [co].[CommandId] = [c].[Id] AND [co].[ChannelId] = @channelId
 ), [LatestExecutions] AS (
   SELECT [c].[Id], MAX([ce].[TimestampUtc]) AS [LatestExecutionUtc]
   FROM [CommandTree] [c]
@@ -43,7 +43,7 @@ SELECT [c].[Id], [c].[Keyword], [c].[Type], [c].[Degree], [ce].[LatestExecutionU
        CASE WHEN [cd].[CooldownInSeconds] IS NULL THEN NULL ELSE COALESCE([c].[CooldownInSeconds], [cd].[CooldownInSeconds]) END AS [CooldownInSeconds],
        CASE WHEN [cd].[Permissions] IS NULL THEN NULL ELSE COALESCE([c].[Permissions], [cd].[Permissions]) END AS [Permissions]
 FROM [CommandTree] [c]
-LEFT JOIN [new].[CommandDefaults] [cd] ON [cd].[CommandId] = [c].[Id]
+LEFT JOIN [Command].[Defaults] [cd] ON [cd].[CommandId] = [c].[Id]
 LEFT JOIN [LatestExecutions] [ce] ON [ce].[Id] = [c].[Id]
 LEFT JOIN [Command].[CustomText] [ct] ON [ct].[CommandId] = [c].[Id]
 ORDER BY [Degree] DESC;

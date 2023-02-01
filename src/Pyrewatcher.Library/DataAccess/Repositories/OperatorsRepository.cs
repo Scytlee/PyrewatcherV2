@@ -11,29 +11,22 @@ public class OperatorsRepository : RepositoryBase, IOperatorsRepository
   {
   }
 
-  public async Task<ChatRoles?> GetUsersOperatorRoleByChannel(long userId, long channelId)
+  public async Task<ChatRoles> GetUsersOperatorRoleByChannel(long userId, long channelId)
   {
-    // TODO: Improve the query to return the string enum
-    // if query returns 0, then user is a global operator
-    // if query returns channelId, then user is a channel operator
-    // if query returns null, then user is not an operator
-    // query cannot return any other value than these 3
     const string query = """
-SELECT TOP 1 COALESCE([ChannelId], 0)
-FROM [new].[Operators]
-WHERE [UserId] = @userId AND ([ChannelId] IS NULL OR [ChannelId] = @channelId)
-ORDER BY [ChannelId];
+DECLARE @role VARCHAR(16) = (
+  SELECT TOP 1 CASE WHEN [ChannelId] IS NULL THEN 'GlobalOperator' ELSE 'ChannelOperator' END
+  FROM [Core].[Operators]
+  WHERE [UserId] = @userId AND ([ChannelId] IS NULL OR [ChannelId] = @channelId)
+  ORDER BY [ChannelId]
+);
+SELECT COALESCE(@role, 'None');
 """;
 
     using var connection = await CreateConnection();
 
-    var result = await connection.QuerySingleOrDefaultAsync<long?>(query, new { userId, channelId });
+    var result = await connection.QuerySingleAsync<string>(query, new { userId, channelId });
 
-    return result switch
-    {
-      null => null,
-      0 => ChatRoles.GlobalOperator,
-      _ => ChatRoles.ChannelOperator
-    };
+    return Enum.Parse<ChatRoles>(result);
   }
 }

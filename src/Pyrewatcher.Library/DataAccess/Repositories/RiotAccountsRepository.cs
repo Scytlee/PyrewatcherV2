@@ -15,13 +15,13 @@ public class RiotAccountsRepository : RepositoryBase, IRiotAccountsRepository
   public async Task<IEnumerable<RiotAccount>> GetActiveLolAccountsForApiCallsByChannelId(long channelId)
   {
     const string query = """
-SELECT [CRAG].[Key], [RA].[SummonerName], [RA].[Server],
-  [CRAG].[DisplayName], [RAG].[SummonerId], [RAG].[AccountId], [RAG].[Puuid],
-  [RAG].[Tier], [RAG].[Rank], [RAG].[LeaguePoints], [RAG].[SeriesProgress]
-FROM [new].[ChannelRiotAccountGames] [CRAG]
-INNER JOIN [new].[RiotAccountGames] [RAG] ON [RAG].[Id] = [CRAG].[RiotAccountGameId]
-INNER JOIN [new].[RiotAccounts] [RA] ON [RA].[Id] = [RAG].[RiotAccountId]
-WHERE [CRAG].[ChannelId] = @channelId AND [CRAG].[Active] = 1 AND [RAG].[Game] = @game;
+SELECT [rcag].[Key], [ra].[SummonerName], [ra].[Server],
+  [rcag].[DisplayName], [rag].[SummonerId], [rag].[AccountId], [rag].[Puuid],
+  [rag].[Tier], [rag].[Rank], [rag].[LeaguePoints], [rag].[SeriesProgress]
+FROM [Riot].[ChannelAccountGames] [rcag]
+INNER JOIN [Riot].[AccountGames] [rag] ON [rag].[Id] = [rcag].[RiotAccountGameId]
+INNER JOIN [Riot].[Accounts] [ra] ON [ra].[Id] = [rag].[RiotAccountId]
+WHERE [rcag].[ChannelId] = @channelId AND [rcag].[Active] = 1 AND [rag].[Game] = @game;
 """;
 
     using var connection = await CreateConnection();

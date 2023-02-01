@@ -15,8 +15,8 @@ public class ChannelsRepository : RepositoryBase, IChannelsRepository
   {
     const string query = """
 SELECT [c].*, [u].[DisplayName], [u].[NormalizedName]
-FROM [new].[Channels] AS [c]
-INNER JOIN [new].[Users] AS [u] ON [u].[Id] = [c].[Id]
+FROM [Core].[Channels] AS [c]
+INNER JOIN [Core].[Users] AS [u] ON [u].[Id] = [c].[Id]
 WHERE [c].[Connected] = 1;
 """;
 

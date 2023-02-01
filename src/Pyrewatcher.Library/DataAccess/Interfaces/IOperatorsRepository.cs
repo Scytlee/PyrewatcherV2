@@ -4,5 +4,5 @@ namespace Pyrewatcher.Library.DataAccess.Interfaces;
 
 public interface IOperatorsRepository
 {
-  Task<ChatRoles?> GetUsersOperatorRoleByChannel(long userId, long channelId);
+  Task<ChatRoles> GetUsersOperatorRoleByChannel(long userId, long channelId);
 }

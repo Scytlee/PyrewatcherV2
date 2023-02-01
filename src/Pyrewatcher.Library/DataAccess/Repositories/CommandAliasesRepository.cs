@@ -14,7 +14,7 @@ public class CommandAliasesRepository : RepositoryBase, ICommandAliasesRepositor
   {
     const string query = """
 SELECT [NewCommand]
-FROM [new].[CommandAliases]
+FROM [Command].[Aliases]
 WHERE [Alias] = @alias AND ([ChannelId] IS NULL OR [ChannelId] = @channelId);
 """;
 

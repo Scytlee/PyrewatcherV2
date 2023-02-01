@@ -35,8 +35,7 @@ var host = Host.CreateDefaultBuilder(args)
                  loggerConfiguration.ReadFrom.Configuration(hostContext.Configuration)
                                     .WriteTo.Console(new ExpressionTemplate(
                                                        "[{UtcDateTime(@t):yyyy-MM-dd HH:mm:ss.fff} {@l:u4}] {Coalesce(ShortenTypeName(SourceContext), '<no source context>'),-30} | {ShortenTwitchLib(@m)}\n{@x}",
-                                                       theme: TemplateTheme.Literate,
-                                                       nameResolver: myFunctions));
+                                                       theme: TemplateTheme.Literate, nameResolver: myFunctions));
                })
                .Build();
 
