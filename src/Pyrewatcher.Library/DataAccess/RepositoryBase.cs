@@ -15,7 +15,7 @@ public abstract class RepositoryBase
 
   protected async Task<IDbConnection> CreateConnection()
   {
-    var conn = new SqlConnection(_configuration.GetConnectionString("Database"));
+    var conn = new SqlConnection(_configuration.GetConnectionString("Pyrewatcher"));
     await conn.OpenAsync();
 
     return conn;

@@ -19,7 +19,7 @@ public class MatchV5Client : IMatchV5Client
   private IFlurlRequest BaseRequest(RoutingValue routingValue) => new FlurlRequest($"https://{routingValue.ToString().ToLowerInvariant()}.api.riotgames.com/")
                                                                   .AppendPathSegments("lol", "match", "v5")
                                                                   .WithTimeout(15)
-                                                                  .WithHeader("X-Riot-Token", _configuration.GetSection("ApiKeys")["RiotLol"]);
+                                                                  .WithHeader("X-Riot-Token", _configuration.GetSection("Secrets:Riot")["LeagueOfLegendsApiKey"]);
 
   public async Task<IEnumerable<string>> GetMatchesByPuuid(string puuid, RoutingValue routingValue, long? startTime = null, long? endTime = null,
     int? queue = null, string type = null, int? start = null, int? count = null)

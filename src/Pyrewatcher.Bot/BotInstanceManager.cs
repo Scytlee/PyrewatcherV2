@@ -65,7 +65,7 @@ public class BotInstanceManager
       CreateInstance(channel);
     }
 
-    var credentials = new ConnectionCredentials(_configuration.GetSection("Twitch")["Username"], _configuration.GetSection("Twitch")["IrcToken"],
+    var credentials = new ConnectionCredentials(_configuration.GetSection("Secrets:Twitch")["Username"], _configuration.GetSection("Secrets:Twitch")["IrcToken"],
                                                 capabilities: new Capabilities(false));
 
     _client.Initialize(credentials, channels.Select(channel => channel.NormalizedName).ToList());
