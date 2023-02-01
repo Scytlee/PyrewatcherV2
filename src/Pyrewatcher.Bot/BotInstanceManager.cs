@@ -79,7 +79,8 @@ public class BotInstanceManager
 
   private void CreateInstance(Channel channel)
   {
-    var instance = _serviceProvider.GetService<BotInstance>()!;
+    using var scope = _serviceProvider.CreateScope();
+    var instance = scope.ServiceProvider.GetService<BotInstance>()!;
     instance.Initialize(channel);
     _instances.Add(channel.NormalizedName, instance);
   }

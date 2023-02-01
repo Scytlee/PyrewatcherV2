@@ -4,8 +4,13 @@ using Pyrewatcher.Bot;
 using Pyrewatcher.Bot.Commands;
 using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Services;
+using Pyrewatcher.Bot.Serilog;
 using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.DataAccess.Repositories;
+using Serilog;
+using Serilog.Expressions;
+using Serilog.Templates;
+using Serilog.Templates.Themes;
 using TwitchLib.Client;
 
 var host = Host.CreateDefaultBuilder(args)
@@ -13,7 +18,7 @@ var host = Host.CreateDefaultBuilder(args)
                {
                  services.AddSingleton<TwitchClient>();
                  services.AddSingleton<BotInstanceManager>();
-                 
+
                  services.AddTransient<BotInstance>();
                  services.AddTransient<ICommandService, CommandService>();
 
@@ -21,8 +26,17 @@ var host = Host.CreateDefaultBuilder(args)
                  services.AddTransient<ICommandAliasesRepository, CommandAliasesRepository>();
                  services.AddTransient<ICommandsRepository, CommandsRepository>();
                  services.AddTransient<IOperatorsRepository, OperatorsRepository>();
-                 
+
                  services.AddTransient<AccountCommand>();
+               })
+               .UseSerilog((hostContext, _, loggerConfiguration) =>
+               {
+                 var myFunctions = new StaticMemberNameResolver(typeof(MyFunctions));
+                 loggerConfiguration.ReadFrom.Configuration(hostContext.Configuration)
+                                    .WriteTo.Console(new ExpressionTemplate(
+                                                       "[{UtcDateTime(@t):yyyy-MM-dd HH:mm:ss.fff} {@l:u4}] {Coalesce(ShortenTypeName(SourceContext), '<no source context>'),-30} | {ShortenTwitchLib(@m)}\n{@x}",
+                                                       theme: TemplateTheme.Literate,
+                                                       nameResolver: myFunctions));
                })
                .Build();
 
@@ -30,16 +44,17 @@ var botInstanceManager = host.Services.GetService<BotInstanceManager>()!;
 
 try
 {
+  Log.Information("Application starting");
   await botInstanceManager.Initialize();
   botInstanceManager.Connect();
 
   await host.RunAsync();
 }
-catch
+catch (Exception ex)
 {
-  // Log
+  Log.Fatal(ex, "A fatal error occurred");
 }
 finally
 {
-  // Log.CloseAndFlush
+  Log.CloseAndFlush();
 }
