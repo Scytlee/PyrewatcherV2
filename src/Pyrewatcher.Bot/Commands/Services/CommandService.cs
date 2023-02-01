@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.Logging;
 using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Models;
 using Pyrewatcher.Library.DataAccess.Interfaces;
@@ -18,15 +19,17 @@ public class CommandService : ICommandService
   private readonly Dictionary<string, ICommand> _stockCommands;
 
   private readonly IConfiguration _configuration;
+  private readonly ILogger<CommandService> _logger;
 
   private readonly ICommandAliasesRepository _commandAliasesRepository;
   private readonly ICommandsRepository _commandsRepository;
   private readonly IOperatorsRepository _operatorsRepository;
 
-  public CommandService(IServiceProvider serviceProvider, IConfiguration configuration, ICommandAliasesRepository commandAliasesRepository,
-    ICommandsRepository commandsRepository, IOperatorsRepository operatorsRepository)
+  public CommandService(IServiceProvider serviceProvider, IConfiguration configuration, ILogger<CommandService> logger,
+    ICommandAliasesRepository commandAliasesRepository, ICommandsRepository commandsRepository, IOperatorsRepository operatorsRepository)
   {
     _configuration = configuration;
+    _logger = logger;
     _commandAliasesRepository = commandAliasesRepository;
     _commandsRepository = commandsRepository;
     _operatorsRepository = operatorsRepository;
@@ -46,16 +49,18 @@ public class CommandService : ICommandService
 
   public async Task HandleCommand(ChatCommand chatCommand)
   {
+    var chatMessage = chatCommand.ChatMessage;
+    _logger.LogInformation("{User} issued command \"{Command}\" in channel {Channel}", chatMessage.DisplayName, chatMessage.Message, chatMessage.Channel);
     var timestampUtc = DateTime.UtcNow;
     var stopwatch = Stopwatch.StartNew();
 
     // 1. Check for an alias
     var alias = await _commandAliasesRepository.GetNewCommandByAliasAndChannelId($"{chatCommand.CommandIdentifier}{chatCommand.CommandText}",
-                                                                                 _instance.Channel.Id);
+      _instance.Channel.Id);
     // If command identifier is '!', then it's supported only if it's an alias
     if (alias is null && chatCommand.CommandIdentifier == '!')
     {
-      // TODO: Log
+      _logger.LogInformation("Command starts with '!' and its alias was not found - returning");
       return;
     }
 
@@ -63,51 +68,84 @@ public class CommandService : ICommandService
                                                               .Concat(chatCommand.ArgumentsAsList)
                                                               .ToList();
 
+    _logger.LogDebug("Command being executed: \"\\{Command}\"", string.Join(' ', fullCommandAsList));
+
     // Check if command is available for the channel
     var command = await _commandsRepository.GetCommandForChannel(_instance.Channel.Id, fullCommandAsList.Take(2).ToArray());
     if (command is null)
     {
-      // TODO: Log
+      _logger.LogInformation("Command was not found - returning");
       return;
     }
 
+    _logger.LogDebug("Command found: \"\\{FullCommand}\", type: {Type}", command.FullCommand, command.Type.ToString());
+
     // Find command classes
-    var commandClass = command.Type switch
+    ICommand? commandClass = null;
+    switch (command.Type)
     {
-      CommandType.Stock => _stockCommands[command.Keyword],
-      // TODO: Implement custom commands
-      CommandType.Custom => null,
-      _ => null // this will never happen anyway
-    };
+      case CommandType.Stock:
+        _stockCommands.TryGetValue(command.Keyword, out commandClass);
+        break;
+      case CommandType.Custom:
+        // TODO: Implement custom commands
+        break;
+    }
 
     if (commandClass is null)
     {
+      _logger.LogWarning("Class instance for command \"\\{Command}\" does not exist - returning", command.Keyword);
       return;
     }
 
-    var subcommandClass = commandClass is ICommandWithSubcommands supercommand
-      ? command.Type switch
+    _logger.LogDebug("Class instance for command \"\\{Command}\" found: {TypeName}", command.Keyword, commandClass.GetType().Name);
+
+    ISubcommand? subcommandClass = null;
+    if (command.Subkeyword is not null)
+    {
+      _logger.LogDebug("Looking for subcommand");
+      var supercommand = (ICommandWithSubcommands) commandClass;
+      switch (command.Type)
       {
-        CommandType.Stock => command.Subkeyword is not null ? supercommand.Subcommands[command.Subkeyword] : null,
-        CommandType.Custom => null,
-        _ => null // this will never happen anyway
+        case CommandType.Stock:
+          supercommand.Subcommands.TryGetValue(command.Keyword, out subcommandClass);
+          break;
       }
-      : null;
+
+      if (subcommandClass is null)
+      {
+        _logger.LogWarning("Class instance for subcommand \"\\{FullCommand}\" does not exist - returning", command.FullCommand);
+        return;
+      }
+
+      _logger.LogDebug("Class instance for subcommand \"\\{FullCommand}\" found: {TypeName}", command.FullCommand, subcommandClass.GetType().Name);
+    }
 
     // Prevent concurrent command executions
     // https://stackoverflow.com/questions/20084695/c-sharp-lock-and-async-method
     await commandClass.Semaphore.WaitAsync();
+    _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been claimed", command.Keyword, chatMessage.Channel);
     try
     {
       // Attempt to execute command
-      var executionResult = await ExecuteCommand(command, commandClass, chatCommand.ChatMessage, fullCommandAsList);
+      var executionResult = await ExecuteCommand(command, (subcommandClass is not null ? subcommandClass : commandClass)!, chatMessage, fullCommandAsList);
 
       stopwatch.Stop();
+      if (executionResult.Result)
+      {
+        _logger.LogInformation("Command \"\\{Command}\" has been successfully executed in {Time} ms", string.Join(' ', fullCommandAsList),
+          stopwatch.ElapsedMilliseconds);
+      }
+      else
+      {
+        _logger.LogInformation("Command \"\\{Command}\" has executed without success in {Time} ms", string.Join(' ', fullCommandAsList),
+          stopwatch.ElapsedMilliseconds);
+      }
 
       var resultToLog = new CommandExecution
       {
         ChannelId = _instance.Channel.Id,
-        UserId = long.Parse(chatCommand.ChatMessage.UserId),
+        UserId = long.Parse(chatMessage.UserId),
         CommandId = command.Id,
         InputCommand = $"{chatCommand.CommandIdentifier}{chatCommand.CommandText} {chatCommand.ArgumentsAsString}",
         ExecutedCommand = $"\\{string.Join(' ', fullCommandAsList)}",
@@ -122,6 +160,7 @@ public class CommandService : ICommandService
     finally
     {
       commandClass.Semaphore.Release();
+      _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been released", command.Keyword, chatMessage.Channel);
     }
   }
 
@@ -132,15 +171,33 @@ public class CommandService : ICommandService
     var userRoles = await GetUserRoles(chatMessage);
     if (!IsUserPermitted(commandInfo.Permissions, userRoles))
     {
-      // TODO: Log
+      _logger.LogInformation("User {User} has insufficient permissions to execute command \"\\{Command}\"", chatMessage.DisplayName,
+        string.Join(' ', fullCommandAsList));
+      _logger.LogDebug("User permissions: {UserPermissions}. Command requirement: {CommandRequirement}", userRoles, commandInfo.Permissions);
       return new CommandExecutionPartialResult
       {
         Result = false, Comment = $"Insufficient permissions (command required {commandInfo.Permissions}, user had {userRoles})"
       };
     }
 
+    // Check if user is an operator
+    bool isUserOperator;
+    if (userRoles.HasFlag(ChatRoles.GlobalOperator))
+    {
+      isUserOperator = true;
+      _logger.LogDebug("User {User} is a global operator", chatMessage.DisplayName);
+    }
+    else if (userRoles.HasFlag(ChatRoles.ChannelOperator))
+    {
+      isUserOperator = true;
+      _logger.LogDebug("User {User} is an operator of channel {Channel}", chatMessage.DisplayName, chatMessage.Channel);
+    }
+    else
+    {
+      isUserOperator = false;
+      _logger.LogDebug("User {User} is not an operator", chatMessage.DisplayName);
+    }
     // Check if command is on cooldown
-    var isUserOperator = userRoles.HasOneOfFlags(ChatRoles.GlobalOperator, ChatRoles.ChannelOperator);
     // Cooldown for operators is no longer than 2 seconds
     var userCooldown = TimeSpan.FromSeconds(isUserOperator ? Math.Min(commandInfo.CooldownInSeconds, 2) : commandInfo.CooldownInSeconds);
 
@@ -150,13 +207,17 @@ public class CommandService : ICommandService
 
       if (lastUsage < userCooldown)
       {
-        // TODO: Log
         var secondsLeft = (userCooldown - lastUsage).TotalMilliseconds / 1000.0;
+        _logger.LogInformation("Command \"\\{Command}\" is on cooldown - {SecondsLeft:F2}s left", commandInfo.Keyword, secondsLeft);
         return new CommandExecutionPartialResult
         {
           Result = false, Comment = $"Command on cooldown - {secondsLeft:F2}s left{(isUserOperator ? " (operator)" : string.Empty)}"
         };
       }
+    }
+    else
+    {
+      _logger.LogDebug("First execution of command \"\\{Command}\" on channel {Channel}", string.Join(' ', fullCommandAsList), chatMessage.Channel);
     }
 
     // Execute command

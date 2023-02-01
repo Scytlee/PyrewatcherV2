@@ -13,4 +13,6 @@ public class Command
   public CommandType Type { get; set; }
   public DateTime? LatestExecutionUtc { get; set; }
   public string? CustomText { get; set; }
+
+  public string FullCommand => Subkeyword is null ? Keyword : $"{Keyword} {Subkeyword}";
 }
