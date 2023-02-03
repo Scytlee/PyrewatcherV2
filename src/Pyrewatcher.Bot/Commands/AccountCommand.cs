@@ -5,11 +5,11 @@ using TwitchLib.Client.Models;
 
 namespace Pyrewatcher.Bot.Commands;
 
-public class AccountCommand : ICommandWithSubcommands
+public class AccountCommand : ICommandWithSubcommands, ILockable
 {
   public string Keyword { get; } = "account";
   public SemaphoreSlim Semaphore { get; } = new(1, 1);
-  public Dictionary<string, ISubcommand> Subcommands { get; private set; }
+  public Dictionary<string, ICommand> Subcommands { get; private set; }
   
   private readonly TwitchClient _client;
   
@@ -18,14 +18,14 @@ public class AccountCommand : ICommandWithSubcommands
     _client = client;
   }
 
-  public void InitializeSubcommands(IEnumerable<ISubcommand> subcommands)
+  public void InitializeSubcommands(IEnumerable<ICommand> subcommands)
   {
-    Subcommands = subcommands.ToDictionary(k => k.Subkeyword, v => v);
+    Subcommands = subcommands.ToDictionary(k => k.Keyword, v => v);
   }
 
-  public Task<CommandExecutionPartialResult> ExecuteAsync(List<string> argsList, ChatMessage message)
+  public Task<ExecutionResult> ExecuteAsync(List<string> argsList, ChatMessage message)
   {
     _client.SendMessage(message.Channel, "This is just a test");
-    return Task.FromResult(new CommandExecutionPartialResult { Result = true });
+    return Task.FromResult(new ExecutionResult { Result = true });
   }
 }

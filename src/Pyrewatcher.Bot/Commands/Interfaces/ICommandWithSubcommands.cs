@@ -2,7 +2,7 @@
 
 public interface ICommandWithSubcommands : ICommand
 {
-  Dictionary<string, ISubcommand> Subcommands { get; }
+  Dictionary<string, ICommand> Subcommands { get; }
 
-  void InitializeSubcommands(IEnumerable<ISubcommand> subcommands);
+  void InitializeSubcommands(IEnumerable<ICommand> subcommands);
 }

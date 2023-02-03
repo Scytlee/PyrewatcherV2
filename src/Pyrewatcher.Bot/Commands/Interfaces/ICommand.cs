@@ -1,7 +1,11 @@
-﻿namespace Pyrewatcher.Bot.Commands.Interfaces;
+﻿using Pyrewatcher.Bot.Commands.Models;
+using TwitchLib.Client.Models;
 
-public interface ICommand : IExecutableCommand
+namespace Pyrewatcher.Bot.Commands.Interfaces;
+
+public interface ICommand
 {
   string Keyword { get; }
-  SemaphoreSlim Semaphore { get; }
+  
+  Task<ExecutionResult> ExecuteAsync(List<string> argsList, ChatMessage message);
 }

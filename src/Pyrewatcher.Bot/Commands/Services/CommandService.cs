@@ -100,7 +100,7 @@ public class CommandService : ICommandService
 
     _logger.LogDebug("Class instance for command \"\\{Command}\" found: {TypeName}", command.Keyword, commandClass.GetType().Name);
 
-    ISubcommand? subcommandClass = null;
+    ICommand? subcommandClass = null;
     if (command.Subkeyword is not null)
     {
       _logger.LogDebug("Looking for subcommand");
@@ -123,12 +123,18 @@ public class CommandService : ICommandService
 
     // Prevent concurrent command executions
     // https://stackoverflow.com/questions/20084695/c-sharp-lock-and-async-method
-    await commandClass.Semaphore.WaitAsync();
-    _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been claimed", command.Keyword, chatMessage.Channel);
+    var semaphore = commandClass is ILockable lockable ? lockable.Semaphore : null; // main command should always be lockable
+    
+    if (semaphore is not null)
+    {
+      await semaphore.WaitAsync();
+      _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been claimed", command.Keyword, chatMessage.Channel);
+    }
+    
     try
     {
       // Attempt to execute command
-      var executionResult = await ExecuteCommand(command, (subcommandClass is not null ? subcommandClass : commandClass)!, chatMessage, fullCommandAsList);
+      var executionResult = await ExecuteCommand(command, subcommandClass ?? commandClass, chatMessage, fullCommandAsList);
 
       stopwatch.Stop();
       if (executionResult.Result)
@@ -159,12 +165,15 @@ public class CommandService : ICommandService
     }
     finally
     {
-      commandClass.Semaphore.Release();
-      _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been released", command.Keyword, chatMessage.Channel);
+      if (semaphore is not null)
+      {
+        semaphore.Release();
+        _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been released", command.Keyword, chatMessage.Channel);
+      }
     }
   }
 
-  private async Task<CommandExecutionPartialResult> ExecuteCommand(Command commandInfo, IExecutableCommand commandClass, ChatMessage chatMessage,
+  private async Task<ExecutionResult> ExecuteCommand(Command commandInfo, ICommand commandClass, ChatMessage chatMessage,
     List<string> fullCommandAsList)
   {
     // Check if user is permitted to use the command
@@ -174,7 +183,7 @@ public class CommandService : ICommandService
       _logger.LogInformation("User {User} has insufficient permissions to execute command \"\\{Command}\"", chatMessage.DisplayName,
         string.Join(' ', fullCommandAsList));
       _logger.LogDebug("User permissions: {UserPermissions}. Command requirement: {CommandRequirement}", userRoles, commandInfo.Permissions);
-      return new CommandExecutionPartialResult
+      return new ExecutionResult
       {
         Result = false, Comment = $"Insufficient permissions (command required {commandInfo.Permissions}, user had {userRoles})"
       };
@@ -209,7 +218,7 @@ public class CommandService : ICommandService
       {
         var secondsLeft = (userCooldown - lastUsage).TotalMilliseconds / 1000.0;
         _logger.LogInformation("Command \"\\{Command}\" is on cooldown - {SecondsLeft:F2}s left", commandInfo.Keyword, secondsLeft);
-        return new CommandExecutionPartialResult
+        return new ExecutionResult
         {
           Result = false, Comment = $"Command on cooldown - {secondsLeft:F2}s left{(isUserOperator ? " (operator)" : string.Empty)}"
         };
