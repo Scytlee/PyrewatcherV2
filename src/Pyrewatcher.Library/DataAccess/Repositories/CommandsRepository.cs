@@ -14,24 +14,19 @@ public class CommandsRepository : RepositoryBase, ICommandsRepository
 
   public async Task<Command?> GetCommandForChannel(long channelId, params string[] keywords)
   {
-    // TODO: This query (and method probably) could be improved a lot, but it works for now
-    // This query retrieves a tree for given command keywords (up to 2)
+    // This query retrieves a tree for given command keywords
     // Example: For command 'account list', this query will return commands 'account list' and 'account'
     // The assumption is that the query will always return a full tree, but I didn't test it enough to confirm it
     const string query = """
 WITH [CommandTree] AS (
-  SELECT [c].*, [co].[Enabled], [co].[CooldownInSeconds], [co].[Permissions]
-  FROM (
-    SELECT [c1].[Id], [c1].[Keyword], [c2].[Type], 2 AS [Degree]
-    FROM [Core].[Commands] [c1]
-    LEFT JOIN [Core].[Commands] [c2] ON [c2].[Id] = [c1].[ParentCommandId]
-    WHERE [c1].[Keyword] = @secondKeyword AND [c2].[Keyword] = @firstKeyword AND ([c1].[ChannelId] IS NULL OR [c1].[ChannelId] = @channelId)
-    UNION
-    SELECT [c1].[Id], [c1].[Keyword], [c1].[Type], 1 AS [Degree]
-    FROM [Core].[Commands] [c1]
-    WHERE [c1].[Keyword] = @firstKeyword AND ([c1].[ChannelId] IS NULL OR [c1].[ChannelId] = @channelId)
-  ) [c]
-  LEFT JOIN [Command].[Overrides] [co] ON [co].[CommandId] = [c].[Id] AND [co].[ChannelId] = @channelId
+  SELECT *, 1 AS [Degree]
+  FROM [Core].[Commands]
+  WHERE [Keyword] = @firstKeyword AND ([ChannelId] IS NULL OR [ChannelId] = @channelId)
+  UNION ALL
+  SELECT [c].*, [ct].[Degree] + 1
+  FROM [Core].[Commands] [c]
+  INNER JOIN [CommandTree] [ct] ON [ct].[Id] = [c].[ParentCommandId]
+  WHERE [c].[Keyword] = @secondKeyword AND [ct].[Keyword] = @firstKeyword AND ([c].[ChannelId] IS NULL OR [c].[ChannelId] = @channelId)
 ), [LatestExecutions] AS (
   SELECT [c].[Id], MAX([ce].[TimestampUtc]) AS [LatestExecutionUtc]
   FROM [CommandTree] [c]
@@ -39,10 +34,11 @@ WITH [CommandTree] AS (
   GROUP BY [c].[Id]
 )
 SELECT [c].[Id], [c].[Keyword], [c].[Type], [c].[Degree], [ce].[LatestExecutionUtc], [ct].[Text] AS [CustomText],
-       CASE WHEN [cd].[Enabled] IS NULL THEN NULL ELSE COALESCE([c].[Enabled], [cd].[Enabled]) END AS [Enabled],
-       CASE WHEN [cd].[CooldownInSeconds] IS NULL THEN NULL ELSE COALESCE([c].[CooldownInSeconds], [cd].[CooldownInSeconds]) END AS [CooldownInSeconds],
-       CASE WHEN [cd].[Permissions] IS NULL THEN NULL ELSE COALESCE([c].[Permissions], [cd].[Permissions]) END AS [Permissions]
+       CASE WHEN [cd].[Enabled] IS NULL THEN NULL ELSE COALESCE([co].[Enabled], [cd].[Enabled]) END AS [Enabled],
+       CASE WHEN [cd].[CooldownInSeconds] IS NULL THEN NULL ELSE COALESCE([co].[CooldownInSeconds], [cd].[CooldownInSeconds]) END AS [CooldownInSeconds],
+       CASE WHEN [cd].[Permissions] IS NULL THEN NULL ELSE COALESCE([co].[Permissions], [cd].[Permissions]) END AS [Permissions]
 FROM [CommandTree] [c]
+LEFT JOIN [Command].[Overrides] [co] ON [co].[CommandId] = [c].[Id] AND [co].[ChannelId] = @channelId
 LEFT JOIN [Command].[Defaults] [cd] ON [cd].[CommandId] = [c].[Id]
 LEFT JOIN [LatestExecutions] [ce] ON [ce].[Id] = [c].[Id]
 LEFT JOIN [Command].[CustomText] [ct] ON [ct].[CommandId] = [c].[Id]
