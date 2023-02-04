@@ -9,7 +9,7 @@ internal class CommandInternal
   public CommandType Type { get; set; }
   public bool? Enabled { get; set; }
   public int? CooldownInSeconds { get; set; }
-  public int? Permissions { get; set; }
+  public ChatRoles? Permissions { get; set; }
   public DateTime? LatestExecutionUtc { get; set; }
   public string? CustomText { get; set; }
 }

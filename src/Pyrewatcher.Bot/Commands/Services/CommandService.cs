@@ -283,13 +283,18 @@ public class CommandService : ICommandService
     return userRoles;
   }
 
-  public static bool IsUserPermitted(int commandPermissions, ChatRoles userRoles)
+  public static bool IsUserPermitted(ChatRoles commandPermissions, ChatRoles userRoles)
   {
+    if (commandPermissions == ChatRoles.None)
+    {
+      return true;
+    }
+    
     if (userRoles.HasOneOfFlags(ChatRoles.GlobalOperator, ChatRoles.ChannelOperator, ChatRoles.Broadcaster))
     {
       return true;
     }
 
-    return (commandPermissions & (int) userRoles) > 0;
+    return ((int) commandPermissions & (int) userRoles) > 0;
   }
 }

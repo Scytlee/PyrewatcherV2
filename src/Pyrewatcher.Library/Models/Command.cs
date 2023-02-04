@@ -9,7 +9,7 @@ public class Command
   public string Keyword { get; set; }
   public string? Subkeyword { get; set; }
   public int CooldownInSeconds { get; set; }
-  public int Permissions { get; set; }
+  public ChatRoles Permissions { get; set; }
   public CommandType Type { get; set; }
   public DateTime? LatestExecutionUtc { get; set; }
   public string? CustomText { get; set; }
