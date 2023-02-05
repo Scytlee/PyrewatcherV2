@@ -35,6 +35,7 @@ var host = Host.CreateDefaultBuilder(args)
                  services.AddTransient<IOperatorsRepository, OperatorsRepository>();
 
                  services.AddTransient<AccountCommand>();
+                 services.AddTransient<AccountListSubcommand>();
                })
                .UseSerilog((hostContext, _, loggerConfiguration) =>
                {

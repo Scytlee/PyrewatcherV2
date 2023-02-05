@@ -103,8 +103,8 @@ ORDER BY [Degree] DESC;
     {
       Id = commands.First().Id,
       ParentId = commands.Count > 1 ? commands.Last().Id : null,
+      PriorKeywords = commands.Skip(1).Select(command => command.Keyword).Reverse().ToArray(),
       Keyword = commands.First().Keyword,
-      Subkeyword = commands.Count > 1 ? commands.Last().Keyword : null,
       Type = commands.First().Type,
       CooldownInSeconds = commands.Last().CooldownInSeconds!.Value,
       Permissions = commands.First().Permissions!.Value,

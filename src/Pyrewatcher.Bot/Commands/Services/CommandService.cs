@@ -16,7 +16,7 @@ public class CommandService : ICommandService
 {
   private BotInstance _instance = null!; // TODO: This could be added to constructor without breaking dependency injection
 
-  private readonly Dictionary<string, ICommand> _stockCommands;
+  private readonly List<CommandTree> _commandForest;
 
   private readonly IConfiguration _configuration;
   private readonly ILogger<CommandService> _logger;
@@ -34,17 +34,42 @@ public class CommandService : ICommandService
     _commandsRepository = commandsRepository;
     _operatorsRepository = operatorsRepository;
 
-    _stockCommands = Assembly.GetExecutingAssembly()
-                             .GetTypes()
-                             .Where(type => type.IsClass)
-                             .Where(type => type.Name.EndsWith("Command"))
-                             .Select(type => (ICommand) serviceProvider.GetService(type)!)
-                             .ToDictionary(k => k.Keyword, v => v);
+    _commandForest = GetCommandForest(serviceProvider);
   }
 
   public void Initialize(BotInstance instance)
   {
     _instance = instance;
+  }
+
+  public List<CommandTree> GetCommandForest(IServiceProvider serviceProvider)
+  {
+    var commands = Assembly.GetExecutingAssembly()
+                           .GetTypes()
+                           .Where(type => type.IsClass)
+                           .Where(type => type.IsAssignableTo(typeof(ICommand)))
+                           .Select(type => (ICommand?) serviceProvider.GetService(type))
+                           .Where(command => command is not null)
+                           .Select(command => command!) // how can I solve this in a less dumb way?
+                           .GroupBy(command => command.PriorKeywords.FirstOrDefault() ?? command.Keyword)
+                           .ToList();
+
+    var commandForest = new List<CommandTree>();
+
+    foreach (var grouping in commands)
+    {
+      var commandsOrdered = grouping.OrderBy(command => command.Level).ToList();
+      var tree = new CommandTree(commandsOrdered.First());
+      foreach (var command in commandsOrdered.Skip(1))
+      {
+        var parentNode = tree.FindChild(node => command.PriorKeywords.SequenceEqual(node.Value.PriorKeywords.Concat(new[] { node.Value.Keyword })));
+        parentNode?.AddChild(command);
+      }
+
+      commandForest.Add(tree);
+    }
+
+    return commandForest;
   }
 
   public async Task HandleCommand(ChatCommand chatCommand)
@@ -80,61 +105,49 @@ public class CommandService : ICommandService
 
     _logger.LogDebug("Command found: \"\\{FullCommand}\", type: {Type}", command.FullCommand, command.Type.ToString());
 
-    // Find command classes
-    ICommand? commandClass = null;
+    // Find command node in the forest
+    CommandTree? commandNode = null;
+
     switch (command.Type)
     {
       case CommandType.Stock:
-        _stockCommands.TryGetValue(command.Keyword, out commandClass);
+        foreach (var tree in _commandForest)
+        {
+          var node = tree.FindChild(node => node.Value.PriorKeywords.SequenceEqual(command.PriorKeywords) && node.Value.Keyword == command.Keyword);
+          if (node is not null)
+          {
+            commandNode = node;
+            break;
+          }
+        }
         break;
       case CommandType.Custom:
         // TODO: Implement custom commands
         break;
     }
 
-    if (commandClass is null)
+    if (commandNode is null)
     {
-      _logger.LogWarning("Class instance for command \"\\{Command}\" does not exist - returning", command.Keyword);
+      _logger.LogWarning("Class instance for command \"\\{FullCommand}\" does not exist - returning", command.FullCommand);
       return;
     }
 
-    _logger.LogDebug("Class instance for command \"\\{Command}\" found: {TypeName}", command.Keyword, commandClass.GetType().Name);
-
-    ICommand? subcommandClass = null;
-    if (command.Subkeyword is not null)
-    {
-      _logger.LogDebug("Looking for subcommand");
-      var supercommand = (ICommandWithSubcommands) commandClass;
-      switch (command.Type)
-      {
-        case CommandType.Stock:
-          supercommand.Subcommands.TryGetValue(command.Keyword, out subcommandClass);
-          break;
-      }
-
-      if (subcommandClass is null)
-      {
-        _logger.LogWarning("Class instance for subcommand \"\\{FullCommand}\" does not exist - returning", command.FullCommand);
-        return;
-      }
-
-      _logger.LogDebug("Class instance for subcommand \"\\{FullCommand}\" found: {TypeName}", command.FullCommand, subcommandClass.GetType().Name);
-    }
+    _logger.LogDebug("Class instance for command \"\\{FullCommand}\" found: {TypeName}", command.FullCommand, commandNode.Value.GetType().Name);
 
     // Prevent concurrent command executions
     // https://stackoverflow.com/questions/20084695/c-sharp-lock-and-async-method
-    var semaphore = commandClass is ILockable lockable ? lockable.Semaphore : null; // main command should always be lockable
-    
+    var semaphore = commandNode.Root.Value is ILockable lockable ? lockable.Semaphore : null; // main command should always be lockable
+
     if (semaphore is not null)
     {
       await semaphore.WaitAsync();
       _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been claimed", command.Keyword, chatMessage.Channel);
     }
-    
+
     try
     {
       // Attempt to execute command
-      var executionResult = await ExecuteCommand(command, subcommandClass ?? commandClass, chatMessage, fullCommandAsList);
+      var executionResult = await ExecuteCommand(command, commandNode.Value, chatMessage, fullCommandAsList);
 
       stopwatch.Stop();
       if (executionResult.Result)
@@ -173,8 +186,7 @@ public class CommandService : ICommandService
     }
   }
 
-  private async Task<ExecutionResult> ExecuteCommand(Command commandInfo, ICommand commandClass, ChatMessage chatMessage,
-    List<string> fullCommandAsList)
+  private async Task<ExecutionResult> ExecuteCommand(Command commandInfo, ICommand commandInstance, ChatMessage chatMessage, List<string> fullCommandAsList)
   {
     // Check if user is permitted to use the command
     var userRoles = await GetUserRoles(chatMessage);
@@ -183,10 +195,7 @@ public class CommandService : ICommandService
       _logger.LogInformation("User {User} has insufficient permissions to execute command \"\\{Command}\"", chatMessage.DisplayName,
         string.Join(' ', fullCommandAsList));
       _logger.LogDebug("User permissions: {UserPermissions}. Command requirement: {CommandRequirement}", userRoles, commandInfo.Permissions);
-      return new ExecutionResult
-      {
-        Result = false, Comment = $"Insufficient permissions (command required {commandInfo.Permissions}, user had {userRoles})"
-      };
+      return new ExecutionResult { Result = false, Comment = $"Insufficient permissions (command required {commandInfo.Permissions}, user had {userRoles})" };
     }
 
     // Check if user is an operator
@@ -230,7 +239,7 @@ public class CommandService : ICommandService
     }
 
     // Execute command
-    return await commandClass.ExecuteAsync(fullCommandAsList.Skip(1).ToList(), chatMessage);
+    return await commandInstance.ExecuteAsync(fullCommandAsList.Skip(commandInstance.Level).ToList(), chatMessage);
   }
 
   public async Task<ChatRoles> GetUserRoles(ChatMessage message)
@@ -289,7 +298,7 @@ public class CommandService : ICommandService
     {
       return true;
     }
-    
+
     if (userRoles.HasOneOfFlags(ChatRoles.GlobalOperator, ChatRoles.ChannelOperator, ChatRoles.Broadcaster))
     {
       return true;
