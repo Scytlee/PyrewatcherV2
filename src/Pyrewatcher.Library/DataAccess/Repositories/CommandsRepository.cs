@@ -1,6 +1,8 @@
-﻿using Pyrewatcher.Library.DataAccess.Interfaces;
+﻿using Microsoft.Extensions.Logging;
+using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.DataAccess.InternalModels;
 using Pyrewatcher.Library.Models;
+using System.Diagnostics;
 
 namespace Pyrewatcher.Library.DataAccess.Repositories;
 
@@ -8,11 +10,13 @@ public class CommandsRepository : ICommandsRepository
 {
   private readonly IDbConnectionFactory _connectionFactory;
   private readonly IDapperWrapper _dapperWrapper;
+  private readonly ILogger<CommandsRepository> _logger;
 
-  public CommandsRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper)
+  public CommandsRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper, ILogger<CommandsRepository> logger)
   {
     _connectionFactory = connectionFactory;
     _dapperWrapper = dapperWrapper;
+    _logger = logger;
   }
 
   public async Task<Command?> GetCommandForChannel(long channelId, params string[] keywords)
@@ -50,10 +54,23 @@ ORDER BY [Degree] DESC;
 
     using var connection = await _connectionFactory.CreateConnection();
 
-    // Commands are ordered from most significant (account list) to least significant (account)
-    var commands = (await _dapperWrapper.QueryAsync<CommandInternal>(connection, query,
-      new { channelId, firstKeyword = keywords[0], secondKeyword = keywords.Length > 1 ? keywords[1] : null })).ToList();
+    List<CommandInternal> commands;
 
+    var stopwatch = Stopwatch.StartNew();
+    try
+    {
+      // Commands are ordered from most significant (account list) to least significant (account)
+      commands = (await _dapperWrapper.QueryAsync<CommandInternal>(connection, query,
+        new { channelId, firstKeyword = keywords[0], secondKeyword = keywords.Length > 1 ? keywords[1] : null })).ToList();
+      stopwatch.Stop();
+      _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(GetCommandForChannel), stopwatch.ElapsedMilliseconds);
+    }
+    catch (Exception exception)
+    {
+      _logger.LogError(exception, "An error occurred during execution of {MethodName} query", nameof(GetCommandForChannel));
+      return null;
+    }
+    
     // If nothing has been found, return null
     if (!commands.Any())
     {
@@ -108,9 +125,19 @@ VALUES (@ChannelId, @UserId, @CommandId, @InputCommand, @ExecutedCommand, @Resul
 """;
 
     using var connection = await _connectionFactory.CreateConnection();
-
-    var result = await _dapperWrapper.ExecuteAsync(connection, query, execution);
-
-    return result == 1;
+    
+    var stopwatch = Stopwatch.StartNew();
+    try
+    {
+      var result = await _dapperWrapper.ExecuteAsync(connection, query, execution);
+      stopwatch.Stop();
+      _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(LogCommandExecution), stopwatch.ElapsedMilliseconds);
+      return result == 1;
+    }
+    catch (Exception exception)
+    {
+      _logger.LogError(exception, "An error occurred during execution of {MethodName} query", nameof(LogCommandExecution));
+      return false;
+    }
   }
 }
