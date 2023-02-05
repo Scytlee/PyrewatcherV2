@@ -1,14 +1,17 @@
-﻿using Dapper;
-using Microsoft.Extensions.Configuration;
-using Pyrewatcher.Library.DataAccess.Interfaces;
+﻿using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.Riot.LeagueOfLegends.Models;
 
 namespace Pyrewatcher.Library.DataAccess.Repositories;
 
-public class LolMatchesRepository : RepositoryBase, ILolMatchesRepository
+public class LolMatchesRepository : ILolMatchesRepository
 {
-  public LolMatchesRepository(IConfiguration configuration) : base(configuration)
+  private readonly IDbConnectionFactory _connectionFactory;
+  private readonly IDapperWrapper _dapperWrapper;
+
+  public LolMatchesRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper)
   {
+    _connectionFactory = connectionFactory;
+    _dapperWrapper = dapperWrapper;
   }
 
   public async Task<IEnumerable<string>> GetMatchesNotInDatabase(List<string> matches)
@@ -19,9 +22,9 @@ FROM [LeagueOfLegends].[Matches]
 WHERE [RiotInternalId] IN @matches;
 """;
 
-    using var connection = await CreateConnection();
+    using var connection = await _connectionFactory.CreateConnection();
 
-    var result = (await connection.QueryAsync<string>(query, new { matches })).ToList();
+    var result = (await _dapperWrapper.QueryAsync<string>(connection, query, new { matches })).ToList();
 
     var notInDatabase = matches.Where(x => !result.Contains(x));
 
@@ -38,9 +41,9 @@ INNER JOIN [Riot].[ChannelAccountGames] [rcag] ON [rcag].[RiotAccountGameId] = [
 WHERE [rcag].[Key] = @accountKey AND [lm].[RiotInternalId] IN @matches;
 """;
 
-    using var connection = await CreateConnection();
+    using var connection = await _connectionFactory.CreateConnection();
 
-    var result = await connection.QueryAsync<string>(query, new { accountKey, matches });
+    var result = await _dapperWrapper.QueryAsync<string>(connection, query, new { accountKey, matches });
 
     var notInDatabase = matches.Where(x => !result.Contains(x));
 
@@ -54,15 +57,16 @@ INSERT INTO [LeagueOfLegends].[Matches] ([RiotInternalId], [GameStartTimestamp],
 VALUES (@matchId, @timestamp, @winningTeam, @duration);
 """;
 
-    using var connection = await CreateConnection();
+    using var connection = await _connectionFactory.CreateConnection();
 
-    var rows = await connection.ExecuteAsync(query, new
-    {
-      matchId,
-      timestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(match.Info.Timestamp),
-      winningTeam = match.Info.Teams.First(x => x.IsWinningTeam).TeamId,
-      duration = match.Info.Duration
-    });
+    var rows = await _dapperWrapper.ExecuteAsync(connection, query,
+      new
+      {
+        matchId,
+        timestamp = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddMilliseconds(match.Info.Timestamp),
+        winningTeam = match.Info.Teams.First(x => x.IsWinningTeam).TeamId,
+        duration = match.Info.Duration
+      });
 
     return rows == 1;
   }
@@ -87,9 +91,9 @@ INSERT INTO [LeagueOfLegends].[MatchPlayers] ([MatchId], [RiotAccountGameId], [T
 VALUES (@lolMatchId, @riotAccountGameId, @team, @championId, @kills, @deaths, @assists, @controlWardsBought);
 """;
 
-    using var connection = await CreateConnection();
+    using var connection = await _connectionFactory.CreateConnection();
 
-    var rows = await connection.ExecuteAsync(query, new
+    var rows = await _dapperWrapper.ExecuteAsync(connection, query, new
     {
       matchId,
       accountKey,

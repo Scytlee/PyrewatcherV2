@@ -3,8 +3,8 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.Models;
-using TwitchLib.Client;
 using TwitchLib.Client.Events;
+using TwitchLib.Client.Interfaces;
 using TwitchLib.Client.Models;
 using TwitchLib.Communication.Events;
 
@@ -19,7 +19,7 @@ public class BotInstanceManager
   private readonly Dictionary<string, BotInstance> _instances;
 
   private readonly IServiceProvider _serviceProvider;
-  private readonly TwitchClient _client;
+  private readonly ITwitchClient _client;
   private readonly IConfiguration _configuration;
   private readonly ILogger<BotInstanceManager> _logger;
 
@@ -27,7 +27,7 @@ public class BotInstanceManager
 
   // private readonly SubscriptionService _subscriptionService;
 
-  public BotInstanceManager(IServiceProvider serviceProvider, TwitchClient client, IConfiguration configuration, ILogger<BotInstanceManager> logger,
+  public BotInstanceManager(IServiceProvider serviceProvider, ITwitchClient client, IConfiguration configuration, ILogger<BotInstanceManager> logger,
     IChannelsRepository channelsRepository)
   {
     _instances = new();
@@ -44,7 +44,6 @@ public class BotInstanceManager
     _client.OnMessageReceived += OnMessageReceived;
     _client.OnJoinedChannel += OnJoinedChannel;
     _client.OnConnected += OnConnected;
-    _client.OnFailureToReceiveJoinConfirmation += OnFailureToReceiveJoinConfirmation;
     _client.OnChatCommandReceived += OnChatCommandReceived;
     _client.OnCommunitySubscription += OnCommunitySubscription;
     _client.OnConnectionError += OnConnectionError;
@@ -54,7 +53,6 @@ public class BotInstanceManager
     _client.OnLeftChannel += OnLeftChannel;
     _client.OnNewSubscriber += OnNewSubscriber;
     _client.OnReSubscriber += OnReSubscriber;
-    _client.OnUnaccountedFor += OnUnaccountedFor;
 
     // Retrieve list of channels to connect to
     var channels = (await _channelsRepository.GetConnected()).ToList();
@@ -65,8 +63,8 @@ public class BotInstanceManager
       CreateInstance(channel);
     }
 
-    var credentials = new ConnectionCredentials(_configuration.GetSection("Secrets:Twitch")["Username"], _configuration.GetSection("Secrets:Twitch")["IrcToken"],
-                                                capabilities: new Capabilities(false));
+    var credentials = new ConnectionCredentials(_configuration.GetSection("Secrets:Twitch")["Username"],
+      _configuration.GetSection("Secrets:Twitch")["IrcToken"], capabilities: new Capabilities(false));
 
     _client.Initialize(credentials, channels.Select(channel => channel.NormalizedName).ToList());
     _client.AddChatCommandIdentifier('\\');
@@ -90,7 +88,6 @@ public class BotInstanceManager
     _client.OnMessageReceived -= OnMessageReceived;
     _client.OnJoinedChannel -= OnJoinedChannel;
     _client.OnConnected -= OnConnected;
-    _client.OnFailureToReceiveJoinConfirmation -= OnFailureToReceiveJoinConfirmation;
     _client.OnChatCommandReceived -= OnChatCommandReceived;
     _client.OnCommunitySubscription -= OnCommunitySubscription;
     _client.OnConnectionError -= OnConnectionError;
@@ -100,7 +97,6 @@ public class BotInstanceManager
     _client.OnLeftChannel -= OnLeftChannel;
     _client.OnNewSubscriber -= OnNewSubscriber;
     _client.OnReSubscriber -= OnReSubscriber;
-    _client.OnUnaccountedFor -= OnUnaccountedFor;
 
     try
     {
@@ -153,12 +149,13 @@ public class BotInstanceManager
     _logger.LogInformation("Pyrewatcher disconnected from channel {Channel}", e.Channel);
   }
 
-  // Client failed to connect to a channel
-  private void OnFailureToReceiveJoinConfirmation(object? sender, OnFailureToReceiveJoinConfirmationArgs e)
-  {
-    _logger.LogInformation("Pyrewatcher failed to connect to channel {Channel}: {Error}", e.Exception.Channel, e.Exception.Details);
-    // TODO: Reconnect to channel
-  }
+  // TODO: Restore this while keeping the interface
+  // // Client failed to connect to a channel
+  // private void OnFailureToReceiveJoinConfirmation(object? sender, OnFailureToReceiveJoinConfirmationArgs e)
+  // {
+  //   _logger.LogInformation("Pyrewatcher failed to connect to channel {Channel}: {Error}", e.Exception.Channel, e.Exception.Details);
+  //   // TO DO: Reconnect to channel
+  // }
 
   private void OnCommunitySubscription(object? sender, OnCommunitySubscriptionArgs e)
   {
@@ -215,10 +212,5 @@ public class BotInstanceManager
     // };
     //
     // await _actionHandler.HandleActionAsync(action);
-  }
-
-  private void OnUnaccountedFor(object? sender, OnUnaccountedForArgs e)
-  {
-    _logger.LogInformation("Unhandled IRC message: {message}", e.RawIRC);
   }
 }

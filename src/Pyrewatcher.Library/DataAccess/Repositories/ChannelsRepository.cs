@@ -1,14 +1,17 @@
-﻿using Dapper;
-using Microsoft.Extensions.Configuration;
-using Pyrewatcher.Library.DataAccess.Interfaces;
+﻿using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.Models;
 
 namespace Pyrewatcher.Library.DataAccess.Repositories;
 
-public class ChannelsRepository : RepositoryBase, IChannelsRepository
+public class ChannelsRepository : IChannelsRepository
 {
-  public ChannelsRepository(IConfiguration configuration) : base(configuration)
+  private readonly IDbConnectionFactory _connectionFactory;
+  private readonly IDapperWrapper _dapperWrapper;
+
+  public ChannelsRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper)
   {
+    _connectionFactory = connectionFactory;
+    _dapperWrapper = dapperWrapper;
   }
 
   public async Task<IEnumerable<Channel>> GetConnected()
@@ -20,11 +23,11 @@ INNER JOIN [Core].[Users] AS [u] ON [u].[Id] = [c].[Id]
 WHERE [c].[Connected] = 1;
 """;
 
-    using var connection = await CreateConnection();
+    using var connection = await _connectionFactory.CreateConnection();
 
     try
     {
-      var result = await connection.QueryAsync<Channel>(query);
+      var result = await _dapperWrapper.QueryAsync<Channel>(connection, query);
       return result;
     }
     catch (Exception e)

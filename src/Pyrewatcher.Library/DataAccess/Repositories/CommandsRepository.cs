@@ -1,15 +1,18 @@
-﻿using Dapper;
-using Microsoft.Extensions.Configuration;
-using Pyrewatcher.Library.DataAccess.Interfaces;
+﻿using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.DataAccess.InternalModels;
 using Pyrewatcher.Library.Models;
 
 namespace Pyrewatcher.Library.DataAccess.Repositories;
 
-public class CommandsRepository : RepositoryBase, ICommandsRepository
+public class CommandsRepository : ICommandsRepository
 {
-  public CommandsRepository(IConfiguration configuration) : base(configuration)
+  private readonly IDbConnectionFactory _connectionFactory;
+  private readonly IDapperWrapper _dapperWrapper;
+
+  public CommandsRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper)
   {
+    _connectionFactory = connectionFactory;
+    _dapperWrapper = dapperWrapper;
   }
 
   public async Task<Command?> GetCommandForChannel(long channelId, params string[] keywords)
@@ -45,18 +48,18 @@ LEFT JOIN [Command].[CustomText] [ct] ON [ct].[CommandId] = [c].[Id]
 ORDER BY [Degree] DESC;
 """;
 
-    using var connection = await CreateConnection();
+    using var connection = await _connectionFactory.CreateConnection();
 
     // Commands are ordered from most significant (account list) to least significant (account)
-    var commands = (await connection.QueryAsync<CommandInternal>(
-      query, new { channelId, firstKeyword = keywords[0], secondKeyword = keywords.Length > 1 ? keywords[1] : null })).ToList();
+    var commands = (await _dapperWrapper.QueryAsync<CommandInternal>(connection, query,
+      new { channelId, firstKeyword = keywords[0], secondKeyword = keywords.Length > 1 ? keywords[1] : null })).ToList();
 
     // If nothing has been found, return null
     if (!commands.Any())
     {
       return null;
     }
-    
+
     // If any command's Enabled or Permissions field is null, return null
     // Reason: If above statement holds, then there is at least one command without specified
     // default values, therefore it's considered unfinished
@@ -64,13 +67,13 @@ ORDER BY [Degree] DESC;
     {
       return null;
     }
-    
+
     // If the most significant command is disabled, return null
     if (!commands.First().Enabled!.Value)
     {
       return null;
     }
-    
+
     // If the least significant command's cooldown is null, return null
     // Reason: All subcommands of a specific command share cooldown with the main command
     if (commands.Last().CooldownInSeconds is null)
@@ -91,7 +94,7 @@ ORDER BY [Degree] DESC;
       LatestExecutionUtc = commands.Last().LatestExecutionUtc,
       CustomText = commands.First().CustomText
     };
-    
+
     return command;
   }
 
@@ -103,10 +106,10 @@ INSERT INTO [Log].[CommandExecutions] ([ChannelId], [UserId], [CommandId], [Inpu
                                        [TimeInMilliseconds], [Comment])
 VALUES (@ChannelId, @UserId, @CommandId, @InputCommand, @ExecutedCommand, @Result, @TimestampUtc, @TimeInMilliseconds, @Comment);
 """;
-    
-    using var connection = await CreateConnection();
 
-    var result = await connection.ExecuteAsync(query, execution);
+    using var connection = await _connectionFactory.CreateConnection();
+
+    var result = await _dapperWrapper.ExecuteAsync(connection, query, execution);
 
     return result == 1;
   }

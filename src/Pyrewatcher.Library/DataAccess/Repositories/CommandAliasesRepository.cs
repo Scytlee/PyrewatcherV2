@@ -1,13 +1,16 @@
-﻿using Dapper;
-using Microsoft.Extensions.Configuration;
-using Pyrewatcher.Library.DataAccess.Interfaces;
+﻿using Pyrewatcher.Library.DataAccess.Interfaces;
 
 namespace Pyrewatcher.Library.DataAccess.Repositories;
 
-public class CommandAliasesRepository : RepositoryBase, ICommandAliasesRepository
+public class CommandAliasesRepository : ICommandAliasesRepository
 {
-  public CommandAliasesRepository(IConfiguration configuration) : base(configuration)
+  private readonly IDbConnectionFactory _connectionFactory;
+  private readonly IDapperWrapper _dapperWrapper;
+
+  public CommandAliasesRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper)
   {
+    _connectionFactory = connectionFactory;
+    _dapperWrapper = dapperWrapper;
   }
 
   public async Task<string?> GetNewCommandByAliasAndChannelId(string alias, long channelId)
@@ -18,9 +21,9 @@ FROM [Command].[Aliases]
 WHERE [Alias] = @alias AND ([ChannelId] IS NULL OR [ChannelId] = @channelId);
 """;
 
-    using var connection = await CreateConnection();
+    using var connection = await _connectionFactory.CreateConnection();
 
-    var result = await connection.QuerySingleOrDefaultAsync<string?>(query, new { alias, channelId });
+    var result = await _dapperWrapper.QuerySingleOrDefaultAsync<string?>(connection, query, new { alias, channelId });
 
     return result;
   }

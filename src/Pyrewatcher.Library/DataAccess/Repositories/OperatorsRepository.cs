@@ -1,14 +1,17 @@
-﻿using Dapper;
-using Microsoft.Extensions.Configuration;
-using Pyrewatcher.Library.DataAccess.Interfaces;
+﻿using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.Enums;
 
 namespace Pyrewatcher.Library.DataAccess.Repositories;
 
-public class OperatorsRepository : RepositoryBase, IOperatorsRepository
+public class OperatorsRepository : IOperatorsRepository
 {
-  public OperatorsRepository(IConfiguration configuration) : base(configuration)
+  private readonly IDbConnectionFactory _connectionFactory;
+  private readonly IDapperWrapper _dapperWrapper;
+
+  public OperatorsRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper)
   {
+    _connectionFactory = connectionFactory;
+    _dapperWrapper = dapperWrapper;
   }
 
   public async Task<ChatRoles> GetUsersOperatorRoleByChannel(long userId, long channelId)
@@ -23,9 +26,9 @@ DECLARE @role VARCHAR(16) = (
 SELECT COALESCE(@role, 'None');
 """;
 
-    using var connection = await CreateConnection();
+    using var connection = await _connectionFactory.CreateConnection();
 
-    var result = await connection.QuerySingleAsync<string>(query, new { userId, channelId });
+    var result = await _dapperWrapper.QuerySingleAsync<string>(connection, query, new { userId, channelId });
 
     return Enum.Parse<ChatRoles>(result);
   }
