@@ -98,7 +98,7 @@ public class CommandService : ICommandService
     _logger.LogDebug("Command being executed: \"\\{Command}\"", string.Join(' ', fullCommandAsList));
 
     // Check if command is available for the channel
-    var command = await _commandsRepository.GetCommandForChannel(_instance.Channel.Id, fullCommandAsList.Take(2).ToArray());
+    var command = await _commandsRepository.GetCommandForChannel(_instance.Channel.Id, fullCommandAsList);
     if (command is null)
     {
       _logger.LogInformation("Command was not found - returning");
@@ -151,7 +151,7 @@ public class CommandService : ICommandService
     if (semaphore is not null)
     {
       await semaphore.WaitAsync();
-      _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been claimed", command.Keyword, chatMessage.Channel);
+      _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been claimed", command.FirstKeyword, chatMessage.Channel);
     }
 
     try
@@ -191,7 +191,7 @@ public class CommandService : ICommandService
       if (semaphore is not null)
       {
         semaphore.Release();
-        _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been released", command.Keyword, chatMessage.Channel);
+        _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been released", command.FirstKeyword, chatMessage.Channel);
       }
     }
   }
@@ -202,8 +202,7 @@ public class CommandService : ICommandService
     var userRoles = await GetUserRoles(chatMessage);
     if (!IsUserPermitted(commandInfo.Permissions, userRoles))
     {
-      _logger.LogInformation("User {User} has insufficient permissions to execute command \"\\{Command}\"", chatMessage.DisplayName,
-        string.Join(' ', fullCommandAsList));
+      _logger.LogInformation("User {User} has insufficient permissions to execute command \"\\{Command}\"", chatMessage.DisplayName, commandInfo.FullCommand);
       _logger.LogDebug("User permissions: {UserPermissions}. Command requirement: {CommandRequirement}", userRoles, commandInfo.Permissions);
       return new ExecutionResult { Result = false, Comment = $"Insufficient permissions (command required {commandInfo.Permissions}, user had {userRoles})" };
     }
@@ -237,7 +236,7 @@ public class CommandService : ICommandService
       if (lastUsage < userCooldown)
       {
         var secondsLeft = (userCooldown - lastUsage).TotalMilliseconds / 1000.0;
-        _logger.LogInformation("Command \"\\{Command}\" is on cooldown - {SecondsLeft:F2}s left", commandInfo.Keyword, secondsLeft);
+        _logger.LogInformation("Command \"\\{Command}\" is on cooldown - {SecondsLeft:F2}s left", commandInfo.FirstKeyword, secondsLeft);
         return new ExecutionResult
         {
           Result = false, Comment = $"Command on cooldown - {secondsLeft:F2}s left{(isUserOperator ? " (operator)" : string.Empty)}"

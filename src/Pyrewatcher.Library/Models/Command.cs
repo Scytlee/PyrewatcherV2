@@ -14,5 +14,6 @@ public class Command
   public DateTime? LatestExecutionUtc { get; set; }
   public string? CustomText { get; set; }
 
+  public string FirstKeyword => PriorKeywords.Any() ? PriorKeywords.First() : Keyword;
   public string FullCommand => PriorKeywords.Any() ? $"{string.Join(' ', PriorKeywords)} {Keyword}" : Keyword;
 }

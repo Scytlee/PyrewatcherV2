@@ -19,37 +19,42 @@ public class CommandsRepository : ICommandsRepository
     _logger = logger;
   }
 
-  public async Task<Command?> GetCommandForChannel(long channelId, params string[] keywords)
+  public async Task<Command?> GetCommandForChannel(long channelId, IEnumerable<string> commandAsList)
   {
     // This query retrieves a tree for given command keywords
     // Example: For command 'account list', this query will return commands 'account list' and 'account'
     // The assumption is that the query will always return a full tree, but I didn't test it enough to confirm it
     const string query = """
-WITH [CommandTree] AS (
-  SELECT *, 1 AS [Degree]
+WITH [CommandKeywords] AS (
+  SELECT ROW_NUMBER() OVER (ORDER BY (SELECT NULL)) AS [Level], [value] AS [Keyword]
+  FROM STRING_SPLIT(@command, ' ')
+), [CommandTree] AS (
+  SELECT *, 1 AS [Level]
   FROM [Core].[Commands]
-  WHERE [Keyword] = @firstKeyword AND ([ChannelId] IS NULL OR [ChannelId] = @channelId)
+  WHERE [Keyword] = (SELECT [Keyword] FROM [CommandKeywords] WHERE [Level] = 1)
+    AND ([ChannelId] IS NULL OR [ChannelId] = @channelId)
   UNION ALL
-  SELECT [c].*, [ct].[Degree] + 1
+  SELECT [c].*, [ct].[Level] + 1
   FROM [Core].[Commands] [c]
   INNER JOIN [CommandTree] [ct] ON [ct].[Id] = [c].[ParentCommandId]
-  WHERE [c].[Keyword] = @secondKeyword AND [ct].[Keyword] = @firstKeyword AND ([c].[ChannelId] IS NULL OR [c].[ChannelId] = @channelId)
-), [LatestExecutions] AS (
-  SELECT [c].[Id], MAX([ce].[TimestampUtc]) AS [LatestExecutionUtc]
+  WHERE [c].[Keyword] = (SELECT [Keyword] FROM [CommandKeywords] WHERE [Level] = [ct].[Level] + 1)
+    AND [ct].[Keyword] = (SELECT [Keyword] FROM [CommandKeywords] WHERE [Level] = [ct].[Level])
+    AND ([c].[ChannelId] IS NULL OR [c].[ChannelId] = @channelId)
+), [LatestExecution] AS (
+  SELECT MAX([ce].[TimestampUtc]) AS [LatestExecutionUtc]
   FROM [CommandTree] [c]
   LEFT JOIN [Log].[CommandExecutions] [ce] ON [ce].[CommandId] = [c].[Id] AND [ce].[ChannelId] = @channelId AND [ce].[Result] = 1
-  GROUP BY [c].[Id]
 )
-SELECT [c].[Id], [c].[Keyword], [c].[Type], [c].[Degree], [ce].[LatestExecutionUtc], [ct].[Text] AS [CustomText],
+SELECT [c].[Id], [c].[Keyword], [c].[Type], [c].[Level], [ce].[LatestExecutionUtc], [ct].[Text] AS [CustomText],
        CASE WHEN [cd].[Enabled] IS NULL THEN NULL ELSE COALESCE([co].[Enabled], [cd].[Enabled]) END AS [Enabled],
        CASE WHEN [cd].[CooldownInSeconds] IS NULL THEN NULL ELSE COALESCE([co].[CooldownInSeconds], [cd].[CooldownInSeconds]) END AS [CooldownInSeconds],
        CASE WHEN [cd].[Permissions] IS NULL THEN NULL ELSE COALESCE([co].[Permissions], [cd].[Permissions]) END AS [Permissions]
 FROM [CommandTree] [c]
 LEFT JOIN [Command].[Overrides] [co] ON [co].[CommandId] = [c].[Id] AND [co].[ChannelId] = @channelId
 LEFT JOIN [Command].[Defaults] [cd] ON [cd].[CommandId] = [c].[Id]
-LEFT JOIN [LatestExecutions] [ce] ON [ce].[Id] = [c].[Id]
+LEFT JOIN [LatestExecution] [ce] ON [c].[Level] = 1
 LEFT JOIN [Command].[CustomText] [ct] ON [ct].[CommandId] = [c].[Id]
-ORDER BY [Degree] DESC;
+ORDER BY [Level] DESC;
 """;
 
     using var connection = await _connectionFactory.CreateConnection();
@@ -60,8 +65,7 @@ ORDER BY [Degree] DESC;
     try
     {
       // Commands are ordered from most significant (account list) to least significant (account)
-      commands = (await _dapperWrapper.QueryAsync<CommandInternal>(connection, query,
-        new { channelId, firstKeyword = keywords[0], secondKeyword = keywords.Length > 1 ? keywords[1] : null })).ToList();
+      commands = (await _dapperWrapper.QueryAsync<CommandInternal>(connection, query, new { channelId, command = string.Join(' ', commandAsList) })).ToList();
       stopwatch.Stop();
       _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(GetCommandForChannel), stopwatch.ElapsedMilliseconds);
     }
@@ -70,7 +74,7 @@ ORDER BY [Degree] DESC;
       _logger.LogError(exception, "An error occurred during execution of {MethodName} query", nameof(GetCommandForChannel));
       return null;
     }
-    
+
     // If nothing has been found, return null
     if (!commands.Any())
     {
@@ -125,7 +129,7 @@ VALUES (@ChannelId, @UserId, @CommandId, @InputCommand, @ExecutedCommand, @Resul
 """;
 
     using var connection = await _connectionFactory.CreateConnection();
-    
+
     var stopwatch = Stopwatch.StartNew();
     try
     {
