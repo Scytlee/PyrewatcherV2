@@ -7,7 +7,7 @@ namespace Pyrewatcher.Bot.Commands;
 
 public class AccountListSubcommand : ICommand
 {
-  public string[] PriorKeywords { get; } = { "account" };
+  public IEnumerable<string> PriorKeywords { get; } = new[] { "account" };
   public string Keyword { get; } = "list";
   public int Level { get; } = 2;
 

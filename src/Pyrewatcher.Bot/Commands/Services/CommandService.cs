@@ -17,6 +17,7 @@ public class CommandService : ICommandService
   private BotInstance _instance = null!; // TODO: This could be added to constructor without breaking dependency injection
 
   private readonly List<CommandTree> _commandForest;
+  private readonly CustomCommand _customCommand;
 
   private readonly IConfiguration _configuration;
   private readonly ILogger<CommandService> _logger;
@@ -25,9 +26,10 @@ public class CommandService : ICommandService
   private readonly ICommandsRepository _commandsRepository;
   private readonly IOperatorsRepository _operatorsRepository;
 
-  public CommandService(IServiceProvider serviceProvider, IConfiguration configuration, ILogger<CommandService> logger,
+  public CommandService(IServiceProvider serviceProvider, CustomCommand customCommand, IConfiguration configuration, ILogger<CommandService> logger,
     ICommandAliasesRepository commandAliasesRepository, ICommandsRepository commandsRepository, IOperatorsRepository operatorsRepository)
   {
+    _customCommand = customCommand;
     _configuration = configuration;
     _logger = logger;
     _commandAliasesRepository = commandAliasesRepository;
@@ -105,38 +107,46 @@ public class CommandService : ICommandService
 
     _logger.LogDebug("Command found: \"\\{FullCommand}\", type: {Type}", command.FullCommand, command.Type.ToString());
 
-    // Find command node in the forest
-    CommandTree? commandNode = null;
+    // Find command
+    ICommand? rootCommand = null;
+    ICommand? commandToExecute = null;
 
     switch (command.Type)
     {
       case CommandType.Stock:
+        // Traverse the command forest
         foreach (var tree in _commandForest)
         {
           var node = tree.FindChild(node => node.Value.PriorKeywords.SequenceEqual(command.PriorKeywords) && node.Value.Keyword == command.Keyword);
           if (node is not null)
           {
-            commandNode = node;
+            rootCommand = node.Root.Value;
+            commandToExecute = node.Value;
             break;
           }
         }
         break;
       case CommandType.Custom:
-        // TODO: Implement custom commands
+        rootCommand = _customCommand;
+        commandToExecute = _customCommand;
+        break;
+      default:
+        rootCommand = null;
+        commandToExecute = null;
         break;
     }
 
-    if (commandNode is null)
+    if (rootCommand is null || commandToExecute is null)
     {
       _logger.LogWarning("Class instance for command \"\\{FullCommand}\" does not exist - returning", command.FullCommand);
       return;
     }
 
-    _logger.LogDebug("Class instance for command \"\\{FullCommand}\" found: {TypeName}", command.FullCommand, commandNode.Value.GetType().Name);
+    _logger.LogDebug("Class instance for command \"\\{FullCommand}\" found: {TypeName}", command.FullCommand, commandToExecute.GetType().Name);
 
     // Prevent concurrent command executions
     // https://stackoverflow.com/questions/20084695/c-sharp-lock-and-async-method
-    var semaphore = commandNode.Root.Value is ILockable lockable ? lockable.Semaphore : null; // main command should always be lockable
+    var semaphore = rootCommand is ILockable lockable ? lockable.Semaphore : null; // main command should always be lockable
 
     if (semaphore is not null)
     {
@@ -147,7 +157,7 @@ public class CommandService : ICommandService
     try
     {
       // Attempt to execute command
-      var executionResult = await ExecuteCommand(command, commandNode.Value, chatMessage, fullCommandAsList);
+      var executionResult = await ExecuteCommand(command, commandToExecute, chatMessage, fullCommandAsList);
 
       stopwatch.Stop();
       if (executionResult.Result)
@@ -215,6 +225,7 @@ public class CommandService : ICommandService
       isUserOperator = false;
       _logger.LogDebug("User {User} is not an operator", chatMessage.DisplayName);
     }
+    
     // Check if command is on cooldown
     // Cooldown for operators is no longer than 2 seconds
     var userCooldown = TimeSpan.FromSeconds(isUserOperator ? Math.Min(commandInfo.CooldownInSeconds, 2) : commandInfo.CooldownInSeconds);
@@ -239,7 +250,8 @@ public class CommandService : ICommandService
     }
 
     // Execute command
-    return await commandInstance.ExecuteAsync(fullCommandAsList.Skip(commandInstance.Level).ToList(), chatMessage);
+    return await commandInstance.ExecuteAsync(
+      commandInfo.CustomText is not null ? new List<string> { commandInfo.CustomText } : fullCommandAsList.Skip(commandInstance.Level).ToList(), chatMessage);
   }
 
   public async Task<ChatRoles> GetUserRoles(ChatMessage message)

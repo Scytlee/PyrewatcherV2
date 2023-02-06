@@ -5,7 +5,7 @@ namespace Pyrewatcher.Bot.Commands.Interfaces;
 
 public interface ICommand
 {
-  string[] PriorKeywords { get; }
+  IEnumerable<string> PriorKeywords { get; }
   string Keyword { get; }
   int Level { get; }
   
