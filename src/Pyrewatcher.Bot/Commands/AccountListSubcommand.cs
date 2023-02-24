@@ -1,6 +1,5 @@
 ﻿using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Models;
-using TwitchLib.Client.Interfaces;
 using TwitchLib.Client.Models;
 
 namespace Pyrewatcher.Bot.Commands;
@@ -11,9 +10,9 @@ public class AccountListSubcommand : ICommand
   public string Keyword { get; } = "list";
   public int Level { get; } = 2;
 
-  private readonly ITwitchClient _client;
+  private readonly ILoggableTwitchClient _client;
 
-  public AccountListSubcommand(ITwitchClient client)
+  public AccountListSubcommand(ILoggableTwitchClient client)
   {
     _client = client;
   }

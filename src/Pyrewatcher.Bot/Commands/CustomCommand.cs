@@ -1,6 +1,5 @@
 ﻿using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Models;
-using TwitchLib.Client.Interfaces;
 using TwitchLib.Client.Models;
 
 namespace Pyrewatcher.Bot.Commands;
@@ -12,9 +11,9 @@ public class CustomCommand : ICommand, ILockable
   public int Level { get; } = 1;
   public SemaphoreSlim Semaphore { get; } = new(1, 1);
   
-  private readonly ITwitchClient _client;
+  private readonly ILoggableTwitchClient _client;
   
-  public CustomCommand(ITwitchClient client)
+  public CustomCommand(ILoggableTwitchClient client)
   {
     _client = client;
   }

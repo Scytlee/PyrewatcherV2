@@ -21,6 +21,7 @@ var host = Host.CreateDefaultBuilder(args)
                .ConfigureServices((hostContext, services) =>
                {
                  services.AddSingleton<ITwitchClient, TwitchClient>();
+                 services.AddTransient<ILoggableTwitchClient, LoggableTwitchClient>();
                  services.AddSingleton<BotInstanceManager>();
                  services.AddTransient<BotInstance>();
 
