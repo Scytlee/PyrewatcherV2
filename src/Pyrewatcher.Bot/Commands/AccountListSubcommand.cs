@@ -17,9 +17,9 @@ public class AccountListSubcommand : ICommand
     _client = client;
   }
 
-  public Task<ExecutionResult> ExecuteAsync(List<string> argsList, ChatMessage message)
+  public Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message)
   {
     _client.SendMessage(message.Channel, "This is just another test");
-    return Task.FromResult(new ExecutionResult { Result = true });
+    return Task.FromResult(CommandResult.Success);
   }
 }

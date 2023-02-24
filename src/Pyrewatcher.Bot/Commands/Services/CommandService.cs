@@ -157,10 +157,10 @@ public class CommandService : ICommandService
     try
     {
       // Attempt to execute command
-      var executionResult = await ExecuteCommand(command, commandToExecute, chatMessage, fullCommandAsList);
+      var commandExecutionResult = await ExecuteCommand(command, commandToExecute, chatMessage, fullCommandAsList);
 
       stopwatch.Stop();
-      if (executionResult.Result)
+      if (commandExecutionResult.IsSuccess)
       {
         _logger.LogInformation("Command \"\\{Command}\" has been successfully executed in {Time} ms", string.Join(' ', fullCommandAsList),
           stopwatch.ElapsedMilliseconds);
@@ -178,10 +178,10 @@ public class CommandService : ICommandService
         CommandId = command.Id,
         InputCommand = $"{chatCommand.CommandIdentifier}{chatCommand.CommandText} {chatCommand.ArgumentsAsString}",
         ExecutedCommand = $"\\{string.Join(' ', fullCommandAsList)}",
-        Result = executionResult.Result,
+        Result = commandExecutionResult.IsSuccess,
         TimestampUtc = timestampUtc,
         TimeInMilliseconds = stopwatch.ElapsedMilliseconds,
-        Comment = executionResult.Comment
+        Comment = commandExecutionResult.Comment
       };
 
       await _commandsRepository.LogCommandExecution(resultToLog);

@@ -9,5 +9,5 @@ public interface ICommand
   string Keyword { get; }
   int Level { get; }
   
-  Task<ExecutionResult> ExecuteAsync(List<string> argsList, ChatMessage message);
+  Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message);
 }

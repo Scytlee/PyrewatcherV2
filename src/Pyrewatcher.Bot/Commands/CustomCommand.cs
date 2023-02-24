@@ -18,10 +18,10 @@ public class CustomCommand : ICommand, ILockable
     _client = client;
   }
   
-  public Task<ExecutionResult> ExecuteAsync(List<string> argsList, ChatMessage message)
+  public Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message)
   {
     var customText = argsList.First();
     _client.SendMessage(message.Channel, customText);
-    return Task.FromResult(new ExecutionResult { Result = true });
+    return Task.FromResult(CommandResult.Success);
   }
 }
