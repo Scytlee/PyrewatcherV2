@@ -25,7 +25,7 @@ public class SynchronizeLolDataService : ISynchronizeLolDataService
 
   public async Task SynchronizeLolMatchDataForActiveChannels()
   {
-    var channels = (await _channelsRepository.GetConnected()).Where(channel => channel.DisplayName != "Pyrewatcher_").ToList();
+    var channels = (await _channelsRepository.GetConnected()).Content!.Where(channel => channel.DisplayName != "Pyrewatcher_").ToList();
 
     foreach (var channel in channels)
     {
@@ -35,7 +35,7 @@ public class SynchronizeLolDataService : ISynchronizeLolDataService
 
   private async Task SynchronizeLolMatchDataForChannel(Channel channel)
   {
-    var accounts = (await _riotAccountsRepository.GetActiveLolAccountsForApiCallsByChannelId(channel.Id)).ToList();
+    var accounts = (await _riotAccountsRepository.GetActiveLolAccountsForApiCallsByChannelId(channel.Id)).Content!.ToList();
 
     foreach (var account in accounts)
     {
@@ -52,8 +52,8 @@ public class SynchronizeLolDataService : ISynchronizeLolDataService
       return;
     }
 
-    var matchesNotInDatabase = (await _lolMatchesRepository.GetMatchesNotInDatabase(matches)).ToList();
-    var matchesNotUpdated = (await _lolMatchesRepository.GetMatchesToUpdateByKey(account.Key, matches.Except(matchesNotInDatabase).ToList())).ToList();
+    var matchesNotInDatabase = (await _lolMatchesRepository.GetMatchesNotInDatabase(matches)).Content!.ToList();
+    var matchesNotUpdated = (await _lolMatchesRepository.GetMatchesToUpdateByKey(account.Key, matches.Except(matchesNotInDatabase).ToList())).Content!.ToList();
 
     var matchesToUpdate = matchesNotInDatabase.Select(match => (match, false)).Concat(matchesNotUpdated.Select(match => (match, true))).ToList();
 
@@ -80,7 +80,7 @@ public class SynchronizeLolDataService : ISynchronizeLolDataService
       {
         var matchInserted = await _lolMatchesRepository.InsertMatchFromDto(matchId, match);
 
-        if (!matchInserted)
+        if (!matchInserted.IsSuccess)
         {
           // TODO: Log failure
           continue;
@@ -97,7 +97,7 @@ public class SynchronizeLolDataService : ISynchronizeLolDataService
 
       var playerInserted = await _lolMatchesRepository.InsertMatchPlayerFromDto(account.Key, matchId, player);
 
-      if (!playerInserted)
+      if (!playerInserted.IsSuccess)
       {
         // TODO: Log failure
       }

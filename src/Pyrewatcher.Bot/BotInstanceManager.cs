@@ -55,10 +55,15 @@ public class BotInstanceManager
     _client.OnReSubscriber += OnReSubscriber;
 
     // Retrieve list of channels to connect to
-    var channels = (await _channelsRepository.GetConnected()).ToList();
+    var channelsResult = await _channelsRepository.GetConnected();
+    if (!channelsResult.IsSuccess)
+    {
+      _logger.LogCritical("List of channels to connect couldn't be retrieved. Exiting the application");
+      Environment.Exit(1);
+    }
 
     // Create bot instances for each channel
-    foreach (var channel in channels)
+    foreach (var channel in channelsResult.Content!)
     {
       CreateInstance(channel);
     }
@@ -66,7 +71,7 @@ public class BotInstanceManager
     var credentials = new ConnectionCredentials(_configuration.GetSection("Secrets:Twitch")["Username"],
       _configuration.GetSection("Secrets:Twitch")["IrcToken"], capabilities: new Capabilities(false));
 
-    _client.Initialize(credentials, channels.Select(channel => channel.NormalizedName).ToList());
+    _client.Initialize(credentials, channelsResult.Content.Select(channel => channel.NormalizedName).ToList());
     _client.AddChatCommandIdentifier('\\');
   }
 

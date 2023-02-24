@@ -1,20 +1,19 @@
 ﻿using Pyrewatcher.Library.DataAccess.Interfaces;
+using Pyrewatcher.Library.Models;
 using Pyrewatcher.Library.Riot.LeagueOfLegends.Models;
 
 namespace Pyrewatcher.Library.DataAccess.Repositories;
 
 public class LolMatchesRepository : ILolMatchesRepository
 {
-  private readonly IDbConnectionFactory _connectionFactory;
-  private readonly IDapperWrapper _dapperWrapper;
+  private readonly IDapperService _dapperService;
 
-  public LolMatchesRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper)
+  public LolMatchesRepository(IDapperService dapperService)
   {
-    _connectionFactory = connectionFactory;
-    _dapperWrapper = dapperWrapper;
+    _dapperService = dapperService;
   }
 
-  public async Task<IEnumerable<string>> GetMatchesNotInDatabase(List<string> matches)
+  public async Task<Result<IEnumerable<string>>> GetMatchesNotInDatabase(List<string> matches)
   {
     const string query = """
 SELECT [RiotInternalId]
@@ -22,16 +21,14 @@ FROM [LeagueOfLegends].[Matches]
 WHERE [RiotInternalId] IN @matches;
 """;
 
-    using var connection = await _connectionFactory.CreateConnection();
-
-    var result = (await _dapperWrapper.QueryAsync<string>(connection, query, new { matches })).ToList();
+    var result = (await _dapperService.QueryAsync<string>(query, new { matches })).Content!.ToList();
 
     var notInDatabase = matches.Where(x => !result.Contains(x));
 
-    return notInDatabase;
+    return Result<IEnumerable<string>>.Success(notInDatabase);
   }
 
-  public async Task<IEnumerable<string>> GetMatchesToUpdateByKey(string accountKey, List<string> matches)
+  public async Task<Result<IEnumerable<string>>> GetMatchesToUpdateByKey(string accountKey, List<string> matches)
   {
     const string query = """
 SELECT [lm].[RiotInternalId]
@@ -41,25 +38,21 @@ INNER JOIN [Riot].[ChannelAccountGames] [rcag] ON [rcag].[RiotAccountGameId] = [
 WHERE [rcag].[Key] = @accountKey AND [lm].[RiotInternalId] IN @matches;
 """;
 
-    using var connection = await _connectionFactory.CreateConnection();
+    var dbResult = await _dapperService.QueryAsync<string>(query, new { accountKey, matches });
 
-    var result = await _dapperWrapper.QueryAsync<string>(connection, query, new { accountKey, matches });
+    var notInDatabase = matches.Where(x => !dbResult.Content!.Contains(x));
 
-    var notInDatabase = matches.Where(x => !result.Contains(x));
-
-    return notInDatabase;
+    return Result<IEnumerable<string>>.Success(notInDatabase);
   }
 
-  public async Task<bool> InsertMatchFromDto(string matchId, MatchV5Dto match)
+  public async Task<Result<bool>> InsertMatchFromDto(string matchId, MatchV5Dto match)
   {
     const string query = """
 INSERT INTO [LeagueOfLegends].[Matches] ([RiotInternalId], [GameStartTimestamp], [WinningTeam], [Duration])
 VALUES (@matchId, @timestamp, @winningTeam, @duration);
 """;
 
-    using var connection = await _connectionFactory.CreateConnection();
-
-    var rows = await _dapperWrapper.ExecuteAsync(connection, query,
+    var dbResult = await _dapperService.ExecuteAsync(query,
       new
       {
         matchId,
@@ -68,10 +61,10 @@ VALUES (@matchId, @timestamp, @winningTeam, @duration);
         duration = match.Info.Duration
       });
 
-    return rows == 1;
+    return Result<bool>.Success(dbResult.Content == 1);
   }
 
-  public async Task<bool> InsertMatchPlayerFromDto(string accountKey, string matchId, MatchParticipantV5Dto player)
+  public async Task<Result<bool>> InsertMatchPlayerFromDto(string accountKey, string matchId, MatchParticipantV5Dto player)
   {
     const string query = """
 DECLARE @lolMatchId BIGINT = (
@@ -91,9 +84,7 @@ INSERT INTO [LeagueOfLegends].[MatchPlayers] ([MatchId], [RiotAccountGameId], [T
 VALUES (@lolMatchId, @riotAccountGameId, @team, @championId, @kills, @deaths, @assists, @controlWardsBought);
 """;
 
-    using var connection = await _connectionFactory.CreateConnection();
-
-    var rows = await _dapperWrapper.ExecuteAsync(connection, query, new
+    var dbResult = await _dapperService.ExecuteAsync(query, new
     {
       matchId,
       accountKey,
@@ -105,6 +96,6 @@ VALUES (@lolMatchId, @riotAccountGameId, @team, @championId, @kills, @deaths, @a
       controlWardsBought = player.VisionWardsBought
     });
 
-    return rows == 1;
+    return Result<bool>.Success(dbResult.Content == 1);
   }
 }

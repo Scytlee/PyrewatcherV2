@@ -1,24 +1,22 @@
 ﻿using Microsoft.Extensions.Logging;
 using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.Enums;
-using System.Diagnostics;
+using Pyrewatcher.Library.Models;
 
 namespace Pyrewatcher.Library.DataAccess.Repositories;
 
 public class OperatorsRepository : IOperatorsRepository
 {
-  private readonly IDbConnectionFactory _connectionFactory;
-  private readonly IDapperWrapper _dapperWrapper;
+  private readonly IDapperService _dapperService;
   private readonly ILogger<OperatorsRepository> _logger;
 
-  public OperatorsRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper, ILogger<OperatorsRepository> logger)
+  public OperatorsRepository(IDapperService dapperService, ILogger<OperatorsRepository> logger)
   {
-    _connectionFactory = connectionFactory;
-    _dapperWrapper = dapperWrapper;
+    _dapperService = dapperService;
     _logger = logger;
   }
 
-  public async Task<ChatRoles> GetUsersOperatorRoleByChannel(long userId, long channelId)
+  public async Task<Result<ChatRoles>> GetUsersOperatorRoleByChannel(long userId, long channelId)
   {
     const string query = """
 DECLARE @role VARCHAR(16) = (
@@ -30,21 +28,14 @@ DECLARE @role VARCHAR(16) = (
 SELECT COALESCE(@role, 'None');
 """;
 
-    using var connection = await _connectionFactory.CreateConnection();
+    var dbResult = await _dapperService.QuerySingleAsync<string>(query, new { userId, channelId });
+    if (!dbResult.IsSuccess)
+    {
+      _logger.LogError(dbResult.Exception, "An error occurred during execution of {MethodName} query", nameof(GetUsersOperatorRoleByChannel));
+      return Result<ChatRoles>.Failure();
+    }
     
-    var stopwatch = Stopwatch.StartNew();
-    try
-    {
-      var result = await _dapperWrapper.QuerySingleAsync<string>(connection, query, new { userId, channelId });
-      stopwatch.Stop();
-      _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(GetUsersOperatorRoleByChannel), stopwatch.ElapsedMilliseconds);
-      return Enum.Parse<ChatRoles>(result);
-    }
-    catch (Exception exception)
-    {
-      _logger.LogError(exception, "An error occurred during execution of {MethodName} query", nameof(GetUsersOperatorRoleByChannel));
-      return ChatRoles.None;
-    }
-
+    _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(GetUsersOperatorRoleByChannel), dbResult.ExecutionTime);
+    return Result<ChatRoles>.Success(Enum.Parse<ChatRoles>(dbResult.Content!));
   }
 }

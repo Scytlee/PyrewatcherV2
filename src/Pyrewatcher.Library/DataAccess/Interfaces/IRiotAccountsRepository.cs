@@ -4,5 +4,5 @@ namespace Pyrewatcher.Library.DataAccess.Interfaces;
 
 public interface IRiotAccountsRepository
 {
-  Task<IEnumerable<RiotAccount>> GetActiveLolAccountsForApiCallsByChannelId(long channelId);
+  Task<Result<IEnumerable<RiotAccount>>> GetActiveLolAccountsForApiCallsByChannelId(long channelId);
 }

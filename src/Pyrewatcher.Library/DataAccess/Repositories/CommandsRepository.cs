@@ -2,24 +2,21 @@
 using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.DataAccess.InternalModels;
 using Pyrewatcher.Library.Models;
-using System.Diagnostics;
 
 namespace Pyrewatcher.Library.DataAccess.Repositories;
 
 public class CommandsRepository : ICommandsRepository
 {
-  private readonly IDbConnectionFactory _connectionFactory;
-  private readonly IDapperWrapper _dapperWrapper;
+  private readonly IDapperService _dapperService;
   private readonly ILogger<CommandsRepository> _logger;
 
-  public CommandsRepository(IDbConnectionFactory connectionFactory, IDapperWrapper dapperWrapper, ILogger<CommandsRepository> logger)
+  public CommandsRepository(IDapperService dapperService, ILogger<CommandsRepository> logger)
   {
-    _connectionFactory = connectionFactory;
-    _dapperWrapper = dapperWrapper;
+    _dapperService = dapperService;
     _logger = logger;
   }
 
-  public async Task<Command?> GetCommandForChannel(long channelId, IEnumerable<string> commandAsList)
+  public async Task<Result<Command?>> GetCommandForChannel(long channelId, IEnumerable<string> commandAsList)
   {
     // This query retrieves a tree for given command keywords
     // Example: For command 'account list', this query will return commands 'account list' and 'account'
@@ -56,29 +53,22 @@ LEFT JOIN [LatestExecution] [ce] ON [c].[Level] = 1
 LEFT JOIN [Command].[CustomText] [ct] ON [ct].[CommandId] = [c].[Id]
 ORDER BY [Level] DESC;
 """;
-
-    using var connection = await _connectionFactory.CreateConnection();
-
-    List<CommandInternal> commands;
-
-    var stopwatch = Stopwatch.StartNew();
-    try
+    
+    var dbResult = await _dapperService.QueryAsync<CommandInternal>(query, new { channelId, command = string.Join(' ', commandAsList) });
+    if (!dbResult.IsSuccess)
     {
-      // Commands are ordered from most significant (account list) to least significant (account)
-      commands = (await _dapperWrapper.QueryAsync<CommandInternal>(connection, query, new { channelId, command = string.Join(' ', commandAsList) })).ToList();
-      stopwatch.Stop();
-      _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(GetCommandForChannel), stopwatch.ElapsedMilliseconds);
+      _logger.LogError(dbResult.Exception, "An error occurred during execution of {MethodName} query", nameof(GetCommandForChannel));
+      return Result<Command?>.Failure();
     }
-    catch (Exception exception)
-    {
-      _logger.LogError(exception, "An error occurred during execution of {MethodName} query", nameof(GetCommandForChannel));
-      return null;
-    }
+    _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(GetCommandForChannel), dbResult.ExecutionTime);
+    
+    // Commands are ordered from most significant (account list) to least significant (account)
+    var commands = dbResult.Content!.ToList(); 
 
     // If nothing has been found, return null
     if (!commands.Any())
     {
-      return null;
+      return Result<Command?>.Success(null);
     }
 
     // If any command's Enabled or Permissions field is null, return null
@@ -86,20 +76,20 @@ ORDER BY [Level] DESC;
     // default values, therefore it's considered unfinished
     if (commands.Any(command => command.Enabled is null || command.Permissions is null))
     {
-      return null;
+      return Result<Command?>.Success(null);
     }
 
     // If the most significant command is disabled, return null
     if (!commands.First().Enabled!.Value)
     {
-      return null;
+      return Result<Command?>.Success(null);
     }
 
     // If the least significant command's cooldown is null, return null
     // Reason: All subcommands of a specific command share cooldown with the main command
     if (commands.Last().CooldownInSeconds is null)
     {
-      return null;
+      return Result<Command?>.Success(null);
     }
 
     // Assemble the command
@@ -116,10 +106,10 @@ ORDER BY [Level] DESC;
       CustomText = commands.First().CustomText
     };
 
-    return command;
+    return Result<Command?>.Success(command);
   }
 
-  public async Task<bool> LogCommandExecution(CommandExecution execution)
+  public async Task<Result<bool>> LogCommandExecution(CommandExecution execution)
   {
     const string query = """
 INSERT INTO [Log].[CommandExecutions] ([ChannelId], [UserId], [CommandId], [InputCommand],
@@ -128,20 +118,14 @@ INSERT INTO [Log].[CommandExecutions] ([ChannelId], [UserId], [CommandId], [Inpu
 VALUES (@ChannelId, @UserId, @CommandId, @InputCommand, @ExecutedCommand, @Result, @TimestampUtc, @TimeInMilliseconds, @Comment);
 """;
 
-    using var connection = await _connectionFactory.CreateConnection();
-
-    var stopwatch = Stopwatch.StartNew();
-    try
+    var dbResult = await _dapperService.ExecuteAsync(query, execution);
+    if (!dbResult.IsSuccess)
     {
-      var result = await _dapperWrapper.ExecuteAsync(connection, query, execution);
-      stopwatch.Stop();
-      _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(LogCommandExecution), stopwatch.ElapsedMilliseconds);
-      return result == 1;
+      _logger.LogError(dbResult.Exception, "An error occurred during execution of {MethodName} query", nameof(LogCommandExecution));
+      return Result<bool>.Failure();
     }
-    catch (Exception exception)
-    {
-      _logger.LogError(exception, "An error occurred during execution of {MethodName} query", nameof(LogCommandExecution));
-      return false;
-    }
+    
+    _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(LogCommandExecution), dbResult.ExecutionTime);
+    return Result<bool>.Success(dbResult.Content == 1);
   }
 }

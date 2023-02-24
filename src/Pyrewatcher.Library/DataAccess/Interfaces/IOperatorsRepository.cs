@@ -1,8 +1,9 @@
 ﻿using Pyrewatcher.Library.Enums;
+using Pyrewatcher.Library.Models;
 
 namespace Pyrewatcher.Library.DataAccess.Interfaces;
 
 public interface IOperatorsRepository
 {
-  Task<ChatRoles> GetUsersOperatorRoleByChannel(long userId, long channelId);
+  Task<Result<ChatRoles>> GetUsersOperatorRoleByChannel(long userId, long channelId);
 }

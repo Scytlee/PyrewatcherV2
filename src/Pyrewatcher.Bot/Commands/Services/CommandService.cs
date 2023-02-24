@@ -82,42 +82,50 @@ public class CommandService : ICommandService
     var stopwatch = Stopwatch.StartNew();
 
     // 1. Check for an alias
-    var alias = await _commandAliasesRepository.GetNewCommandByAliasAndChannelId($"{chatCommand.CommandIdentifier}{chatCommand.CommandText}",
+    var aliasResult = await _commandAliasesRepository.GetNewCommandByAliasAndChannelId($"{chatCommand.CommandIdentifier}{chatCommand.CommandText}",
       _instance.Channel.Id);
+    if (!aliasResult.IsSuccess)
+    {
+      return;
+    }
     // If command identifier is '!', then it's supported only if it's an alias
-    if (alias is null && chatCommand.CommandIdentifier == '!')
+    if (aliasResult.Content is null && chatCommand.CommandIdentifier == '!')
     {
       _logger.LogInformation("Command starts with '!' and its alias was not found - returning");
       return;
     }
 
-    var fullCommandAsList = (alias ?? chatCommand.CommandText).Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+    var fullCommandAsList = (aliasResult.Content ?? chatCommand.CommandText).Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
                                                               .Concat(chatCommand.ArgumentsAsList)
                                                               .ToList();
 
     _logger.LogDebug("Command being executed: \"\\{Command}\"", string.Join(' ', fullCommandAsList));
 
     // Check if command is available for the channel
-    var command = await _commandsRepository.GetCommandForChannel(_instance.Channel.Id, fullCommandAsList);
-    if (command is null)
+    var commandResult = await _commandsRepository.GetCommandForChannel(_instance.Channel.Id, fullCommandAsList);
+    if (!commandResult.IsSuccess)
+    {
+      return;
+    }
+    if (commandResult.Content is null)
     {
       _logger.LogInformation("Command was not found - returning");
       return;
     }
 
-    _logger.LogDebug("Command found: \"\\{FullCommand}\", type: {Type}", command.FullCommand, command.Type.ToString());
+    _logger.LogDebug("Command found: \"\\{FullCommand}\", type: {Type}", commandResult.Content.FullCommand, commandResult.Content.Type.ToString());
 
     // Find command
     ICommand? rootCommand = null;
     ICommand? commandToExecute = null;
 
-    switch (command.Type)
+    switch (commandResult.Content.Type)
     {
       case CommandType.Stock:
         // Traverse the command forest
         foreach (var tree in _commandForest)
         {
-          var node = tree.FindChild(node => node.Value.PriorKeywords.SequenceEqual(command.PriorKeywords) && node.Value.Keyword == command.Keyword);
+          var node = tree.FindChild(node => node.Value.PriorKeywords.SequenceEqual(commandResult.Content.PriorKeywords) && node.Value.Keyword == commandResult.Content.Keyword);
           if (node is not null)
           {
             rootCommand = node.Root.Value;
@@ -138,11 +146,11 @@ public class CommandService : ICommandService
 
     if (rootCommand is null || commandToExecute is null)
     {
-      _logger.LogWarning("Class instance for command \"\\{FullCommand}\" does not exist - returning", command.FullCommand);
+      _logger.LogWarning("Class instance for command \"\\{FullCommand}\" does not exist - returning", commandResult.Content.FullCommand);
       return;
     }
 
-    _logger.LogDebug("Class instance for command \"\\{FullCommand}\" found: {TypeName}", command.FullCommand, commandToExecute.GetType().Name);
+    _logger.LogDebug("Class instance for command \"\\{FullCommand}\" found: {TypeName}", commandResult.Content.FullCommand, commandToExecute.GetType().Name);
 
     // Prevent concurrent command executions
     // https://stackoverflow.com/questions/20084695/c-sharp-lock-and-async-method
@@ -151,13 +159,13 @@ public class CommandService : ICommandService
     if (semaphore is not null)
     {
       await semaphore.WaitAsync();
-      _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been claimed", command.FirstKeyword, chatMessage.Channel);
+      _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been claimed", commandResult.Content.FirstKeyword, chatMessage.Channel);
     }
 
     try
     {
       // Attempt to execute command
-      var commandExecutionResult = await ExecuteCommand(command, commandToExecute, chatMessage, fullCommandAsList);
+      var commandExecutionResult = await ExecuteCommand(commandResult.Content, commandToExecute, chatMessage, fullCommandAsList);
 
       stopwatch.Stop();
       if (commandExecutionResult.IsSuccess)
@@ -175,7 +183,7 @@ public class CommandService : ICommandService
       {
         ChannelId = _instance.Channel.Id,
         UserId = long.Parse(chatMessage.UserId),
-        CommandId = command.Id,
+        CommandId = commandResult.Content.Id,
         InputCommand = $"{chatCommand.CommandIdentifier}{chatCommand.CommandText} {chatCommand.ArgumentsAsString}",
         ExecutedCommand = $"\\{string.Join(' ', fullCommandAsList)}",
         Result = commandExecutionResult.IsSuccess,
@@ -191,12 +199,12 @@ public class CommandService : ICommandService
       if (semaphore is not null)
       {
         semaphore.Release();
-        _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been released", command.FirstKeyword, chatMessage.Channel);
+        _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been released", commandResult.Content.FirstKeyword, chatMessage.Channel);
       }
     }
   }
 
-  private async Task<ExecutionResult> ExecuteCommand(Command commandInfo, ICommand commandInstance, ChatMessage chatMessage, List<string> fullCommandAsList)
+  private async Task<CommandResult> ExecuteCommand(Command commandInfo, ICommand commandInstance, ChatMessage chatMessage, List<string> fullCommandAsList)
   {
     // Check if user is permitted to use the command
     var userRoles = await GetUserRoles(chatMessage);
@@ -204,7 +212,7 @@ public class CommandService : ICommandService
     {
       _logger.LogInformation("User {User} has insufficient permissions to execute command \"\\{Command}\"", chatMessage.DisplayName, commandInfo.FullCommand);
       _logger.LogDebug("User permissions: {UserPermissions}. Command requirement: {CommandRequirement}", userRoles, commandInfo.Permissions);
-      return new ExecutionResult { Result = false, Comment = $"Insufficient permissions (command required {commandInfo.Permissions}, user had {userRoles})" };
+      return CommandResult.Failure($"Insufficient permissions (command required {commandInfo.Permissions}, user had {userRoles})");
     }
 
     // Check if user is an operator
@@ -237,10 +245,7 @@ public class CommandService : ICommandService
       {
         var secondsLeft = (userCooldown - lastUsage).TotalMilliseconds / 1000.0;
         _logger.LogInformation("Command \"\\{Command}\" is on cooldown - {SecondsLeft:F2}s left", commandInfo.FirstKeyword, secondsLeft);
-        return new ExecutionResult
-        {
-          Result = false, Comment = $"Command on cooldown - {secondsLeft:F2}s left{(isUserOperator ? " (operator)" : string.Empty)}"
-        };
+        return CommandResult.Failure($"Command on cooldown - {secondsLeft:F2}s left{(isUserOperator ? " (operator)" : string.Empty)}");
       }
     }
     else
@@ -261,7 +266,8 @@ public class CommandService : ICommandService
     var userRoles = ChatRoles.Viewer;
 
     // Database operator check
-    userRoles |= await _operatorsRepository.GetUsersOperatorRoleByChannel(long.Parse(message.UserId), _instance.Channel.Id);
+    var operatorCheckResult = await _operatorsRepository.GetUsersOperatorRoleByChannel(long.Parse(message.UserId), _instance.Channel.Id);
+    userRoles |= operatorCheckResult.Content;
 
     // Trusted check
     // This is something that might be implemented in the future

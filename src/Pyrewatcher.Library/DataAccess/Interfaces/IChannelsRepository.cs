@@ -4,5 +4,5 @@ namespace Pyrewatcher.Library.DataAccess.Interfaces;
 
 public interface IChannelsRepository
 {
-  Task<IEnumerable<Channel>> GetConnected();
+  Task<Result<IEnumerable<Channel>>> GetConnected();
 }

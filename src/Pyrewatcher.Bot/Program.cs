@@ -9,7 +9,7 @@ using Pyrewatcher.Bot.Serilog;
 using Pyrewatcher.Library.DataAccess.Factories;
 using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.DataAccess.Repositories;
-using Pyrewatcher.Library.DataAccess.Wrappers;
+using Pyrewatcher.Library.DataAccess.Services;
 using Serilog;
 using Serilog.Expressions;
 using Serilog.Templates;
@@ -29,7 +29,7 @@ var host = Host.CreateDefaultBuilder(args)
 
                  services.AddTransient<IDbConnectionFactory, SqlConnectionFactory>(
                    _ => new SqlConnectionFactory(hostContext.Configuration.GetConnectionString("Pyrewatcher")!));
-                 services.AddTransient<IDapperWrapper, DapperWrapper>();
+                 services.AddTransient<IDapperService, DapperService>();
                  services.AddTransient<IChannelsRepository, ChannelsRepository>();
                  services.AddTransient<ICommandAliasesRepository, CommandAliasesRepository>();
                  services.AddTransient<ICommandsRepository, CommandsRepository>();
