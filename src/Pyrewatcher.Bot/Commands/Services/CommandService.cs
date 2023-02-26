@@ -24,15 +24,17 @@ public class CommandService : ICommandService
 
   private readonly ICommandsRepository _commandsRepository;
   private readonly IOperatorsRepository _operatorsRepository;
+  private readonly IUsersRepository _usersRepository;
 
   public CommandService(IServiceProvider serviceProvider, CustomCommand customCommand, IConfiguration configuration, ILogger<CommandService> logger,
-    ICommandsRepository commandsRepository, IOperatorsRepository operatorsRepository)
+    ICommandsRepository commandsRepository, IOperatorsRepository operatorsRepository, IUsersRepository usersRepository)
   {
     _customCommand = customCommand;
     _configuration = configuration;
     _logger = logger;
     _commandsRepository = commandsRepository;
     _operatorsRepository = operatorsRepository;
+    _usersRepository = usersRepository;
 
     _commandForest = GetCommandForest(serviceProvider);
   }
@@ -76,7 +78,9 @@ public class CommandService : ICommandService
     _logger.LogInformation("{User} issued command \"{Command}\" in channel {Channel}", chatMessage.DisplayName, chatMessage.Message, chatMessage.Channel);
     var timestampUtc = DateTime.UtcNow;
     var stopwatch = Stopwatch.StartNew();
-
+    
+    await _usersRepository.UpsertUser(long.Parse(chatMessage.UserId), chatMessage.DisplayName);
+    
     // 1. Check for an alias
     var aliasResult = await _commandsRepository.GetNewCommandByAliasAndChannelId($"{chatCommand.CommandIdentifier}{chatCommand.CommandText}",
       _instance.Channel.Id);
@@ -92,8 +96,8 @@ public class CommandService : ICommandService
     }
 
     var fullCommandAsList = (aliasResult.Content ?? chatCommand.CommandText).Split(' ', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
-                                                              .Concat(chatCommand.ArgumentsAsList)
-                                                              .ToList();
+                                                                            .Concat(chatCommand.ArgumentsAsList)
+                                                                            .ToList();
 
     _logger.LogDebug("Command being executed: \"\\{Command}\"", string.Join(' ', fullCommandAsList));
 
@@ -121,7 +125,8 @@ public class CommandService : ICommandService
         // Traverse the command forest
         foreach (var tree in _commandForest)
         {
-          var node = tree.FindChild(node => node.Value.PriorKeywords.SequenceEqual(commandResult.Content.PriorKeywords) && node.Value.Keyword == commandResult.Content.Keyword);
+          var node = tree.FindChild(node =>
+            node.Value.PriorKeywords.SequenceEqual(commandResult.Content.PriorKeywords) && node.Value.Keyword == commandResult.Content.Keyword);
           if (node is not null)
           {
             rootCommand = node.Root.Value;
@@ -195,7 +200,8 @@ public class CommandService : ICommandService
       if (semaphore is not null)
       {
         semaphore.Release();
-        _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been released", commandResult.Content.FirstKeyword, chatMessage.Channel);
+        _logger.LogDebug("Semaphore of command \"\\{Command}\" for channel {Channel} has been released", commandResult.Content.FirstKeyword,
+          chatMessage.Channel);
       }
     }
   }
@@ -228,7 +234,7 @@ public class CommandService : ICommandService
       isUserOperator = false;
       _logger.LogDebug("User {User} is not an operator", chatMessage.DisplayName);
     }
-    
+
     // Check if command is on cooldown
     // Cooldown for operators is no longer than 2 seconds
     var userCooldown = TimeSpan.FromSeconds(isUserOperator ? Math.Min(commandInfo.CooldownInSeconds, 2) : commandInfo.CooldownInSeconds);

@@ -39,6 +39,7 @@ var host = Host.CreateDefaultBuilder(args)
                  services.AddTransient<ICommandsRepository, CommandsRepository>();
                  services.AddTransient<ILanguageRepository, LanguageRepository>();
                  services.AddTransient<IOperatorsRepository, OperatorsRepository>();
+                 services.AddTransient<IUsersRepository, UsersRepository>();
 
                  services.AddTransient<AccountCommand>();
                  services.AddTransient<AccountListSubcommand>();
