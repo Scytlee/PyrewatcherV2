@@ -1,5 +1,6 @@
 ﻿using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Models;
+using Pyrewatcher.Bot.Interfaces;
 using TwitchLib.Client.Models;
 
 namespace Pyrewatcher.Bot.Commands;

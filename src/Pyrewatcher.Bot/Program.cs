@@ -5,11 +5,14 @@ using Pyrewatcher.Bot;
 using Pyrewatcher.Bot.Commands;
 using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Services;
+using Pyrewatcher.Bot.Interfaces;
 using Pyrewatcher.Bot.Serilog;
-using Pyrewatcher.Library.DataAccess.Factories;
+using Pyrewatcher.Bot.Services;
 using Pyrewatcher.Library.DataAccess.Interfaces;
 using Pyrewatcher.Library.DataAccess.Repositories;
 using Pyrewatcher.Library.DataAccess.Services;
+using Pyrewatcher.Library.Interfaces;
+using Pyrewatcher.Library.Services;
 using Serilog;
 using Serilog.Expressions;
 using Serilog.Templates;
@@ -26,6 +29,8 @@ var host = Host.CreateDefaultBuilder(args)
                  services.AddTransient<BotInstance>();
 
                  services.AddTransient<ICommandService, CommandService>();
+                 services.AddSingleton<ILanguageLocalizer, LanguageLocalizer>();
+                 services.AddTransient<IMessageGenerator, MessageGenerator>();
 
                  services.AddTransient<IDbConnectionFactory, SqlConnectionFactory>(
                    _ => new SqlConnectionFactory(hostContext.Configuration.GetConnectionString("Pyrewatcher")!));
@@ -33,6 +38,7 @@ var host = Host.CreateDefaultBuilder(args)
                  services.AddTransient<IChannelsRepository, ChannelsRepository>();
                  services.AddTransient<ICommandAliasesRepository, CommandAliasesRepository>();
                  services.AddTransient<ICommandsRepository, CommandsRepository>();
+                 services.AddTransient<ILanguageRepository, LanguageRepository>();
                  services.AddTransient<IOperatorsRepository, OperatorsRepository>();
 
                  services.AddTransient<AccountCommand>();

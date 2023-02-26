@@ -1,7 +1,8 @@
 ﻿using Microsoft.Extensions.Logging;
+using Pyrewatcher.Bot.Interfaces;
 using TwitchLib.Client.Interfaces;
 
-namespace Pyrewatcher.Bot;
+namespace Pyrewatcher.Bot.Services;
 
 public class LoggableTwitchClient : ILoggableTwitchClient
 {
@@ -18,8 +19,13 @@ public class LoggableTwitchClient : ILoggableTwitchClient
     _logger = logger;
   }
 
-  public void SendMessage(string channel, string message, bool dryRun = false)
+  public void SendMessage(string? channel, string? message, bool dryRun = false)
   {
+    if (channel is null || message is null)
+    {
+      return;
+    }
+    
     _client.SendMessage(channel: channel, message: message, dryRun: dryRun);
     _messagesSent.Add(message);
     

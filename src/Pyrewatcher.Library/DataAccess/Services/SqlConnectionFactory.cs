@@ -2,7 +2,7 @@
 using System.Data;
 using System.Data.SqlClient;
 
-namespace Pyrewatcher.Library.DataAccess.Factories;
+namespace Pyrewatcher.Library.DataAccess.Services;
 
 public class SqlConnectionFactory : IDbConnectionFactory
 {

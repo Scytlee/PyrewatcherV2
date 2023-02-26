@@ -1,5 +1,6 @@
 ﻿using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Models;
+using Pyrewatcher.Bot.Interfaces;
 using TwitchLib.Client.Models;
 
 namespace Pyrewatcher.Bot.Commands;
@@ -11,15 +12,20 @@ public class AccountListSubcommand : ICommand
   public int Level { get; } = 2;
 
   private readonly ILoggableTwitchClient _client;
+  private readonly IMessageGenerator _messageGenerator;
 
-  public AccountListSubcommand(ILoggableTwitchClient client)
+  public AccountListSubcommand(ILoggableTwitchClient client, IMessageGenerator messageGenerator)
   {
     _client = client;
+    _messageGenerator = messageGenerator;
   }
 
-  public Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message)
+  public async Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message)
   {
-    _client.SendMessage(message.Channel, "This is just another test");
-    return Task.FromResult(CommandResult.Success);
+    var generatedMessage = await _messageGenerator.Generate("command_test_formatted", "en", parameters: new { Fruit = "Apple", Vegetable = "Carrot" },
+      mention: message.DisplayName);
+    _client.SendMessage(message.Channel, generatedMessage);
+    
+    return CommandResult.Success;
   }
 }

@@ -1,5 +1,6 @@
 ﻿using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Models;
+using Pyrewatcher.Bot.Interfaces;
 using TwitchLib.Client.Models;
 
 namespace Pyrewatcher.Bot.Commands;
@@ -12,15 +13,19 @@ public class AccountCommand : ICommand, ILockable
   public SemaphoreSlim Semaphore { get; } = new(1, 1);
 
   private readonly ILoggableTwitchClient _client;
+  private readonly IMessageGenerator _messageGenerator;
 
-  public AccountCommand(ILoggableTwitchClient client)
+  public AccountCommand(ILoggableTwitchClient client, IMessageGenerator messageGenerator)
   {
     _client = client;
+    _messageGenerator = messageGenerator;
   }
 
-  public Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message)
+  public async Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message)
   {
-    _client.SendMessage(message.Channel, "This is just a test");
-    return Task.FromResult(CommandResult.Success);
+    var generatedMessage = await _messageGenerator.Generate("command_testtt", "en");
+    _client.SendMessage(message.Channel, generatedMessage);
+    
+    return CommandResult.Success;
   }
 }
