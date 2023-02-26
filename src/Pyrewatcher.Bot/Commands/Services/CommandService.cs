@@ -22,17 +22,15 @@ public class CommandService : ICommandService
   private readonly IConfiguration _configuration;
   private readonly ILogger<CommandService> _logger;
 
-  private readonly ICommandAliasesRepository _commandAliasesRepository;
   private readonly ICommandsRepository _commandsRepository;
   private readonly IOperatorsRepository _operatorsRepository;
 
   public CommandService(IServiceProvider serviceProvider, CustomCommand customCommand, IConfiguration configuration, ILogger<CommandService> logger,
-    ICommandAliasesRepository commandAliasesRepository, ICommandsRepository commandsRepository, IOperatorsRepository operatorsRepository)
+    ICommandsRepository commandsRepository, IOperatorsRepository operatorsRepository)
   {
     _customCommand = customCommand;
     _configuration = configuration;
     _logger = logger;
-    _commandAliasesRepository = commandAliasesRepository;
     _commandsRepository = commandsRepository;
     _operatorsRepository = operatorsRepository;
 
@@ -50,9 +48,7 @@ public class CommandService : ICommandService
                            .GetTypes()
                            .Where(type => type.IsClass)
                            .Where(type => type.IsAssignableTo(typeof(ICommand)))
-                           .Select(type => (ICommand?) serviceProvider.GetService(type))
-                           .Where(command => command is not null)
-                           .Select(command => command!) // how can I solve this in a less dumb way?
+                           .Select(type => (ICommand?) serviceProvider.GetService(type)!)
                            .GroupBy(command => command.PriorKeywords.FirstOrDefault() ?? command.Keyword)
                            .ToList();
 
@@ -82,7 +78,7 @@ public class CommandService : ICommandService
     var stopwatch = Stopwatch.StartNew();
 
     // 1. Check for an alias
-    var aliasResult = await _commandAliasesRepository.GetNewCommandByAliasAndChannelId($"{chatCommand.CommandIdentifier}{chatCommand.CommandText}",
+    var aliasResult = await _commandsRepository.GetNewCommandByAliasAndChannelId($"{chatCommand.CommandIdentifier}{chatCommand.CommandText}",
       _instance.Channel.Id);
     if (!aliasResult.IsSuccess)
     {

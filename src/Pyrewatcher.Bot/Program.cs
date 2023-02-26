@@ -36,7 +36,6 @@ var host = Host.CreateDefaultBuilder(args)
                    _ => new SqlConnectionFactory(hostContext.Configuration.GetConnectionString("Pyrewatcher")!));
                  services.AddTransient<IDapperService, DapperService>();
                  services.AddTransient<IChannelsRepository, ChannelsRepository>();
-                 services.AddTransient<ICommandAliasesRepository, CommandAliasesRepository>();
                  services.AddTransient<ICommandsRepository, CommandsRepository>();
                  services.AddTransient<ILanguageRepository, LanguageRepository>();
                  services.AddTransient<IOperatorsRepository, OperatorsRepository>();
