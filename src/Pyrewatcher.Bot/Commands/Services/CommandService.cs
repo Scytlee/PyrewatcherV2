@@ -78,9 +78,9 @@ public class CommandService : ICommandService
     _logger.LogInformation("{User} issued command \"{Command}\" in channel {Channel}", chatMessage.DisplayName, chatMessage.Message, chatMessage.Channel);
     var timestampUtc = DateTime.UtcNow;
     var stopwatch = Stopwatch.StartNew();
-    
+
     await _usersRepository.UpsertUser(long.Parse(chatMessage.UserId), chatMessage.DisplayName);
-    
+
     // 1. Check for an alias
     var aliasResult = await _commandsRepository.GetNewCommandByAliasAndChannelId($"{chatCommand.CommandIdentifier}{chatCommand.CommandText}",
       _instance.Channel.Id);
@@ -195,6 +195,10 @@ public class CommandService : ICommandService
 
       await _commandsRepository.LogCommandExecution(resultToLog);
     }
+    catch (Exception exception)
+    {
+      _logger.LogError(exception, "An error occurred during command execution");
+    }
     finally
     {
       if (semaphore is not null)
@@ -257,7 +261,8 @@ public class CommandService : ICommandService
 
     // Execute command
     return await commandInstance.ExecuteAsync(
-      commandInfo.CustomText is not null ? new List<string> { commandInfo.CustomText } : fullCommandAsList.Skip(commandInstance.Level).ToList(), chatMessage);
+      commandInfo.CustomText is not null ? new List<string> { commandInfo.CustomText } : fullCommandAsList.Skip(commandInstance.Level).ToList(), chatMessage,
+      _instance.Channel);
   }
 
   public async Task<ChatRoles> GetUserRoles(ChatMessage message)

@@ -15,7 +15,7 @@ public class LanguageRepository : ILanguageRepository
     _logger = logger;
   }
 
-  public async Task<Result<Dictionary<string, string>>> GetLanguage(string languageCode)
+  public async Task<Result<Dictionary<string, string>>> LoadLanguageResources(string languageCode)
   {
     const string query = """
 SELECT [Name], [Value]
@@ -26,11 +26,11 @@ WHERE [IsoCode] = @languageCode;
     var dbResult = await _dapperService.QueryAsync<(string Name, string Value)>(query, new { languageCode });
     if (!dbResult.IsSuccess)
     {
-      _logger.LogError(dbResult.Exception, "An error occurred during execution of {MethodName} query", nameof(GetLanguage));
+      _logger.LogError(dbResult.Exception, "An error occurred during execution of {MethodName} query", nameof(LoadLanguageResources));
       return Result<Dictionary<string, string>>.Failure();
     }
     
-    _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(GetLanguage), dbResult.ExecutionTime);
+    _logger.LogTrace("{MethodName} query execution time: {Time} ms", nameof(LoadLanguageResources), dbResult.ExecutionTime);
     return Result<Dictionary<string, string>>.Success(dbResult.Content!.ToDictionary(k => k.Name, v => v.Value));
   }
 }

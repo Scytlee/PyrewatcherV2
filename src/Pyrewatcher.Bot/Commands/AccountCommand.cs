@@ -1,6 +1,7 @@
 ﻿using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Models;
 using Pyrewatcher.Bot.Interfaces;
+using Pyrewatcher.Library.Models;
 using TwitchLib.Client.Models;
 
 namespace Pyrewatcher.Bot.Commands;
@@ -21,11 +22,11 @@ public class AccountCommand : ICommand, ILockable
     _messageGenerator = messageGenerator;
   }
 
-  public async Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message)
+  public async Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message, Channel channel)
   {
-    var generatedMessage = await _messageGenerator.Generate("command_testtt", "en");
+    var generatedMessage = await _messageGenerator.Generate("command_test", channel.LanguageCode);
     _client.SendMessage(message.Channel, generatedMessage);
-    
+
     return CommandResult.Success;
   }
 }

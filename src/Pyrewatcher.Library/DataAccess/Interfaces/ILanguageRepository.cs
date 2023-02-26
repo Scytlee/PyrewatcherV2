@@ -4,5 +4,5 @@ namespace Pyrewatcher.Library.DataAccess.Interfaces;
 
 public interface ILanguageRepository
 {
-  Task<Result<Dictionary<string, string>>> GetLanguage(string languageCode);
+  Task<Result<Dictionary<string, string>>> LoadLanguageResources(string languageCode);
 }

@@ -1,6 +1,7 @@
 ﻿using Pyrewatcher.Bot.Commands.Interfaces;
 using Pyrewatcher.Bot.Commands.Models;
 using Pyrewatcher.Bot.Interfaces;
+using Pyrewatcher.Library.Models;
 using TwitchLib.Client.Models;
 
 namespace Pyrewatcher.Bot.Commands;
@@ -19,7 +20,7 @@ public class CustomCommand : ICommand, ILockable
     _client = client;
   }
   
-  public Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message)
+  public Task<CommandResult> ExecuteAsync(List<string> argsList, ChatMessage message, Channel channel)
   {
     var customText = argsList.First();
     _client.SendMessage(message.Channel, customText);
